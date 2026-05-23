@@ -115,7 +115,10 @@
         <div class="modal-body">
           <div class="form-group"><label class="form-label">Nombre del negocio *</label><input type="text" id="biz-name" class="form-input" placeholder="Mi Tienda de Abarrotes"></div>
           <div class="form-group"><label class="form-label">Slug (URL) *</label><input type="text" id="biz-slug" class="form-input" placeholder="mi-tienda" oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9-]/g,'')"></div>
-          <div class="form-group"><label class="form-label">Email del dueño *</label><input type="email" id="biz-email" class="form-input" placeholder="dueño@correo.com"></div>
+          <div class="grid-2">
+            <div class="form-group"><label class="form-label">Email del dueño *</label><input type="email" id="biz-email" class="form-input" placeholder="dueño@correo.com"></div>
+            <div class="form-group"><label class="form-label">Contraseña del dueño *</label><input type="password" id="biz-password" class="form-input" placeholder="Contraseña para cuenta nueva"></div>
+          </div>
           <div class="grid-2">
             <div class="form-group"><label class="form-label">Dirección</label><input type="text" id="biz-address" class="form-input"></div>
             <div class="form-group"><label class="form-label">Teléfono</label><input type="text" id="biz-phone" class="form-input"></div>
@@ -132,21 +135,50 @@
       const name = document.getElementById('biz-name').value;
       const slug = document.getElementById('biz-slug').value;
       const email = document.getElementById('biz-email').value;
+      const password = document.getElementById('biz-password').value;
       const address = document.getElementById('biz-address').value;
       const phone = document.getElementById('biz-phone').value;
       if (!name || !slug || !email) return toast('Completa los campos obligatorios', 'error');
 
       try {
+        // Check if owner profile already exists
+        const { data: ownerProfile } = await supabase.from('profiles').select('id, role').eq('email', email).maybeSingle();
+
+        if (!ownerProfile) {
+          if (!password) {
+            return toast('El dueño no está registrado. Ingresa una contraseña para crear su cuenta.', 'warning');
+          }
+          if (password.length < 6) {
+            return toast('La contraseña debe tener al menos 6 caracteres', 'warning');
+          }
+
+          // Register user using secondary non-persisted supabase client
+          const tempSupabase = window.supabaseLib.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+            auth: { persistSession: false, autoRefreshToken: false }
+          });
+          const { error: signUpErr } = await tempSupabase.auth.signUp({
+            email: email,
+            password: password,
+            options: {
+              data: {
+                full_name: name
+              }
+            }
+          });
+          if (signUpErr) throw signUpErr;
+
+          // Wait a moment for trigger to create profile
+          await new Promise(r => setTimeout(r, 1500));
+        }
+
         // Create business
         const { data: biz, error } = await supabase.from('businesses').insert({ name, slug, owner_email: email, address, phone }).select().single();
         if (error) throw error;
 
-        // Link owner profile if exists
-        const { data: ownerProfile } = await supabase.from('profiles').select('id, role').eq('email', email).single();
-        if (ownerProfile) {
-          const newRole = ownerProfile.role === 'superadmin' ? 'superadmin' : 'admin';
-          await supabase.from('profiles').update({ business_id: biz.id, role: newRole }).eq('id', ownerProfile.id);
-        }
+        // Link owner profile
+        const newRole = (ownerProfile && ownerProfile.role === 'superadmin') ? 'superadmin' : 'admin';
+        const { error: linkError } = await supabase.from('profiles').update({ business_id: biz.id, role: newRole }).eq('email', email);
+        if (linkError) throw linkError;
 
         // Create default categories
         const defaultCats = [
@@ -167,7 +199,7 @@
           { name: 'Personal', icon: '👤', business_id: biz.id },
         ]);
 
-        toast('Negocio creado exitosamente', 'success');
+        toast('Negocio y dueño creados exitosamente', 'success');
         closeModal();
         loadBusinesses();
       } catch (e) { toast('Error: ' + e.message, 'error'); }
@@ -179,7 +211,10 @@
         <div class="modal-body">
           <div class="form-group"><label class="form-label">Nombre</label><input type="text" id="edit-name" class="form-input" value="${name}"></div>
           <div class="form-group"><label class="form-label">Slug</label><input type="text" id="edit-slug" class="form-input" value="${slug}"></div>
-          <div class="form-group"><label class="form-label">Email dueño</label><input type="email" id="edit-email" class="form-input" value="${email}"></div>
+          <div class="grid-2">
+            <div class="form-group"><label class="form-label">Email dueño</label><input type="email" id="edit-email" class="form-input" value="${email}"></div>
+            <div class="form-group"><label class="form-label">Contraseña nuevo dueño (opcional)</label><input type="password" id="edit-password" class="form-input" placeholder="Solo para registrar cuenta nueva"></div>
+          </div>
           <div class="grid-2">
             <div class="form-group"><label class="form-label">Dirección</label><input type="text" id="edit-address" class="form-input" value="${address}"></div>
             <div class="form-group"><label class="form-label">Teléfono</label><input type="text" id="edit-phone" class="form-input" value="${phone}"></div>
@@ -193,15 +228,56 @@
     }
 
     async function updateBiz(id) {
+      const name = document.getElementById('edit-name').value;
+      const slug = document.getElementById('edit-slug').value;
+      const email = document.getElementById('edit-email').value;
+      const password = document.getElementById('edit-password').value;
+      const address = document.getElementById('edit-address').value;
+      const phone = document.getElementById('edit-phone').value;
+
       try {
-        await supabase.from('businesses').update({
-          name: document.getElementById('edit-name').value,
-          slug: document.getElementById('edit-slug').value,
-          owner_email: document.getElementById('edit-email').value,
-          address: document.getElementById('edit-address').value,
-          phone: document.getElementById('edit-phone').value,
+        // Check if owner profile already exists
+        const { data: ownerProfile } = await supabase.from('profiles').select('id, role').eq('email', email).maybeSingle();
+
+        if (!ownerProfile) {
+          if (!password) {
+            return toast('El nuevo dueño no está registrado. Ingresa una contraseña para crear su cuenta.', 'warning');
+          }
+          if (password.length < 6) {
+            return toast('La contraseña debe tener al menos 6 caracteres', 'warning');
+          }
+
+          // Register user using secondary non-persisted supabase client
+          const tempSupabase = window.supabaseLib.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+            auth: { persistSession: false, autoRefreshToken: false }
+          });
+          const { error: signUpErr } = await tempSupabase.auth.signUp({
+            email: email,
+            password: password,
+            options: {
+              data: {
+                full_name: name
+              }
+            }
+          });
+          if (signUpErr) throw signUpErr;
+
+          // Wait a moment for trigger to create profile
+          await new Promise(r => setTimeout(r, 1500));
+        }
+
+        // Update business
+        const { error: bizErr } = await supabase.from('businesses').update({
+          name, slug, owner_email: email, address, phone
         }).eq('id', id);
-        toast('Negocio actualizado', 'success');
+        if (bizErr) throw bizErr;
+
+        // Link owner profile to business
+        const newRole = (ownerProfile && ownerProfile.role === 'superadmin') ? 'superadmin' : 'admin';
+        const { error: linkErr } = await supabase.from('profiles').update({ business_id: id, role: newRole }).eq('email', email);
+        if (linkErr) throw linkErr;
+
+        toast('Negocio actualizado exitosamente', 'success');
         closeModal();
         loadBusinesses();
       } catch (e) { toast('Error: ' + e.message, 'error'); }
