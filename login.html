@@ -80,6 +80,13 @@
       setTimeout(() => errorDiv.classList.remove('show'), 5000);
     }
 
+    // Load remembered email if present
+    const rememberedEmail = localStorage.getItem('remember_email');
+    if (rememberedEmail) {
+      document.getElementById('login-email').value = rememberedEmail;
+      setTimeout(() => document.getElementById('login-password').focus(), 100);
+    }
+
     // Check if already logged in
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) redirectUser(session.user);
@@ -124,6 +131,10 @@
         btn.textContent = 'Iniciar Sesión';
         return;
       }
+      
+      // Save email for next time
+      localStorage.setItem('remember_email', email);
+      
       redirectUser(data.user);
     });
 

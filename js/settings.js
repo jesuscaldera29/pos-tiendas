@@ -25,6 +25,19 @@ const Settings = {
       <div class="settings-grid">
         <div class="settings-section">
           <h4>🏪 Datos del Negocio</h4>
+          
+          <div class="form-group flex gap-12 items-center" style="margin-bottom:16px;">
+            <div id="logo-preview-wrapper" style="width:64px;height:64px;border-radius:var(--radius-sm);background:var(--bg-surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;">
+              ${b.logo_url ? `<img id="set-logo-preview" src="${b.logo_url}" style="width:100%;height:100%;object-fit:cover;">` : `<span id="set-logo-placeholder" style="font-size:24px">🏪</span>`}
+            </div>
+            <div>
+              <label class="form-label" style="margin-bottom:4px;">Logo del negocio</label>
+              <input type="file" id="set-logo-file" accept="image/*" style="display:none;" onchange="Settings.handleLogoUpload(event)">
+              <button class="btn btn-outline btn-sm" onclick="document.getElementById('set-logo-file').click()" type="button">📁 Seleccionar Logo</button>
+              <button class="btn btn-ghost btn-sm text-danger" onclick="Settings.removeLogo()" style="margin-left:8px;" type="button">Eliminar</button>
+            </div>
+          </div>
+
           <div class="form-group"><label class="form-label">Nombre del negocio</label>
             <input type="text" id="set-name" class="form-input" value="${b.name || ''}"></div>
           <div class="form-group"><label class="form-label">Dirección</label>
@@ -94,6 +107,13 @@ const Settings = {
           <h4>👤 Usuarios del Negocio</h4>
           <div id="users-list"><span class="spinner"></span> Cargando...</div>
           <button class="btn btn-outline w-full mt-16" onclick="Settings.showAddUser()">➕ Agregar Cajero</button>
+        </div>
+
+        <div class="settings-section">
+          <h4>📲 Descargar Aplicación (PWA)</h4>
+          <p class="text-muted mb-16">Instala el Punto de Venta directamente como una aplicación de escritorio o móvil con tu logo personalizado.</p>
+          <button class="btn btn-primary w-full" id="pwa-install-btn" onclick="App.installPWA()">📲 Instalar en este Dispositivo</button>
+          <p class="text-muted mt-8" style="font-size:0.75rem;">Para dispositivos móviles, también puedes usar "Agregar a pantalla de inicio" desde el menú de tu navegador.</p>
         </div>
 
         <div class="settings-section col-span-2" style="grid-column: 1 / -1;">
@@ -171,16 +191,54 @@ const Settings = {
     document.getElementById('camera-test-result').textContent = `✅ Escaneado: ${code}`;
   },
 
+  handleLogoUpload(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) return App.toast('La imagen es demasiado grande. Máximo 2MB.', 'error');
+    
+    const reader = new FileReader();
+    reader.onload = function(evt) {
+      const base64 = evt.target.result;
+      const previewWrapper = document.getElementById('logo-preview-wrapper');
+      if (previewWrapper) {
+        previewWrapper.innerHTML = `<img id="set-logo-preview" src="${base64}" style="width:100%;height:100%;object-fit:cover;">`;
+      }
+    };
+    reader.readAsDataURL(file);
+  },
+
+  removeLogo() {
+    const previewWrapper = document.getElementById('logo-preview-wrapper');
+    if (previewWrapper) {
+      previewWrapper.innerHTML = `<span id="set-logo-placeholder" style="font-size:24px">🏪</span>`;
+    }
+  },
+
   async saveBusiness() {
     try {
+      const logoImg = document.getElementById('set-logo-preview');
+      const logo_url = logoImg ? logoImg.getAttribute('src') : null;
+
       const updates = {
         name: document.getElementById('set-name').value,
         address: document.getElementById('set-address').value,
         phone: document.getElementById('set-phone').value,
         rfc: document.getElementById('set-rfc').value,
+        logo_url: logo_url
       };
       await DB.updateBusiness(updates);
       document.getElementById('business-name').textContent = updates.name;
+      
+      // Update sidebar logo/icon dynamically
+      const sidebarLogo = document.querySelector('.sidebar-header .logo');
+      if (sidebarLogo) {
+        sidebarLogo.innerHTML = updates.logo_url ? `<img src="${updates.logo_url}" style="width:32px;height:32px;border-radius:4px;object-fit:cover;">` : '🏪';
+      }
+      
+      // Re-trigger dynamic manifest generation
+      App.business = { ...App.business, ...updates };
+      App.updateDynamicManifest();
+
       App.toast('Datos actualizados', 'success');
     } catch (e) { App.toast('Error: ' + e.message, 'error'); }
   },

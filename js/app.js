@@ -65,6 +65,11 @@ const App = {
 
     // Update UI
     document.getElementById('business-name').textContent = this.business?.name || 'Mi Tienda';
+    if (this.business?.logo_url) {
+      const logoEl = document.querySelector('.sidebar-header .logo');
+      if (logoEl) logoEl.innerHTML = `<img src="${this.business.logo_url}" style="width:32px;height:32px;border-radius:4px;object-fit:cover;">`;
+    }
+    this.updateDynamicManifest();
     this.updateDate();
     setInterval(() => this.updateDate(), 60000);
 
@@ -201,8 +206,71 @@ const App = {
     if (!confirm('¿Cerrar sesión?')) return;
     await supabase.auth.signOut();
     window.location.href = 'login.html';
+  },
+
+  installPWA() {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then((choiceResult) => {
+        if (choiceResult.outcome === 'accepted') {
+          App.toast('¡Aplicación instalada con éxito!', 'success');
+        }
+        deferredPrompt = null;
+      });
+    } else {
+      App.toast('La aplicación ya está instalada o puedes añadirla desde el menú del navegador ("Instalar" o "Agregar a pantalla de inicio").', 'info');
+    }
+  },
+
+  updateDynamicManifest() {
+    try {
+      const logoUrl = this.business?.logo_url;
+      const name = this.business?.name || 'POS Tienda';
+      
+      const manifest = {
+        name: name,
+        short_name: name,
+        start_url: window.location.pathname.includes('app.html') ? 'app.html' : 'index.html',
+        display: "standalone",
+        background_color: "#0a0a1a",
+        theme_color: "#0a0a1a",
+        icons: [
+          {
+            src: logoUrl || "assets/icon-192.png",
+            sizes: "192x192",
+            type: "image/png"
+          },
+          {
+            src: logoUrl || "assets/icon-512.png",
+            sizes: "512x512",
+            type: "image/png"
+          }
+        ]
+      };
+      
+      const blob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
+      const manifestURL = URL.createObjectURL(blob);
+      
+      const oldManifestLink = document.querySelector('link[rel="manifest"]');
+      if (oldManifestLink) {
+        oldManifestLink.setAttribute('href', manifestURL);
+      }
+    } catch (e) {
+      console.warn("Failed to generate dynamic PWA manifest:", e);
+    }
   }
 };
+
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  const btn = document.getElementById('pwa-install-btn');
+  if (btn) {
+    btn.style.display = 'block';
+    btn.textContent = '📲 Instalar en este Dispositivo';
+  }
+});
 
 // Close modal on overlay click
 document.getElementById('modal-overlay')?.addEventListener('click', (e) => {
