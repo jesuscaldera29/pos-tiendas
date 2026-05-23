@@ -72,19 +72,79 @@ const POS = {
 
   renderProducts() {
     let filtered = this.products;
-    if (this.selectedCategory) filtered = filtered.filter(p => p.category_id === this.selectedCategory);
+    if (this.selectedCategory) {
+      filtered = filtered.filter(p => p.category_id === this.selectedCategory);
+      if (this.searchTerm) {
+        const s = this.searchTerm.toLowerCase();
+        filtered = filtered.filter(p => p.name.toLowerCase().includes(s) || (p.barcode && p.barcode.includes(s)));
+      }
+      if (!filtered.length) return '<div class="empty-state"><div class="empty-icon">📦</div><h3>Sin productos</h3><p>No se encontraron productos</p></div>';
+      return `<div class="product-grid-sub">${filtered.map(p => this.renderProductCard(p)).join('')}</div>`;
+    }
+
     if (this.searchTerm) {
       const s = this.searchTerm.toLowerCase();
       filtered = filtered.filter(p => p.name.toLowerCase().includes(s) || (p.barcode && p.barcode.includes(s)));
+      if (!filtered.length) return '<div class="empty-state"><div class="empty-icon">📦</div><h3>Sin productos</h3><p>No se encontraron productos</p></div>';
+      return `<div class="product-grid-sub">${filtered.map(p => this.renderProductCard(p)).join('')}</div>`;
     }
-    if (!filtered.length) return '<div class="empty-state"><div class="empty-icon">📦</div><h3>Sin productos</h3><p>No se encontraron productos</p></div>';
-    return filtered.map(p => `
+
+    // Group by category when "Todos" is selected
+    const categoriesMap = {};
+    this.categories.forEach(c => {
+      categoriesMap[c.id] = { category: c, products: [] };
+    });
+    categoriesMap['none'] = { category: { id: null, name: 'Sin categoría', icon: '📦' }, products: [] };
+
+    filtered.forEach(p => {
+      const catId = p.category_id || 'none';
+      if (categoriesMap[catId]) {
+        categoriesMap[catId].products.push(p);
+      }
+    });
+
+    let html = '';
+    this.categories.forEach(c => {
+      const group = categoriesMap[c.id];
+      if (group && group.products.length > 0) {
+        html += `
+          <div class="category-section mb-24">
+            <h3 class="category-section-title">${c.icon} ${c.name}</h3>
+            <div class="product-grid-sub">
+              ${group.products.map(p => this.renderProductCard(p)).join('')}
+            </div>
+          </div>
+        `;
+      }
+    });
+
+    const noneGroup = categoriesMap['none'];
+    if (noneGroup && noneGroup.products.length > 0) {
+      html += `
+        <div class="category-section mb-24">
+          <h3 class="category-section-title">📦 Sin categoría</h3>
+          <div class="product-grid-sub">
+            ${noneGroup.products.map(p => this.renderProductCard(p)).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    if (!html) {
+      return '<div class="empty-state"><div class="empty-icon">📦</div><h3>Sin productos</h3><p>No se encontraron productos</p></div>';
+    }
+
+    return html;
+  },
+
+  renderProductCard(p) {
+    return `
       <div class="product-card" onclick="POS.addToCart('${p.id}')">
         <div class="p-name" title="${p.name}">${p.name}</div>
         <div class="p-price">$${Number(p.price_sell).toFixed(2)}</div>
         <div class="p-stock ${p.stock <= p.min_stock ? 'low' : ''}">Stock: ${p.stock} ${p.unit}</div>
       </div>
-    `).join('');
+    `;
   },
 
   renderCartItems() {
@@ -213,6 +273,12 @@ const POS = {
     } else {
       App.toast('Producto no encontrado: ' + code, 'error');
       Sounds.play('error');
+      setTimeout(() => {
+        if (confirm(`El producto con código "${code}" no existe. ¿Deseas ir al inventario para registrarlo?`)) {
+          App.navigate('inventory');
+          Inventory.showProductForm(null, code);
+        }
+      }, 500);
     }
   },
 

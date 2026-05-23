@@ -162,13 +162,14 @@ tr:last-child td { border-bottom:none; }
 .barcode-input-wrapper input:focus { box-shadow:0 0 0 4px rgba(108,99,255,0.2); }
 
 /* POS PRODUCT GRID */
-.product-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:12px; }
+.product-grid, .product-grid-sub { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:12px; }
 .product-card { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-sm); padding:12px; cursor:pointer; transition:var(--transition); text-align:center; }
 .product-card:hover { border-color:var(--primary); transform:translateY(-2px); box-shadow:0 4px 12px rgba(108,99,255,0.15); }
 .product-card .p-name { font-weight:500; font-size:0.85rem; margin-bottom:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .product-card .p-price { color:var(--success); font-weight:700; font-size:1.1rem; }
 .product-card .p-stock { font-size:0.75rem; color:var(--text-muted); margin-top:4px; }
 .product-card .p-stock.low { color:var(--danger); }
+.category-section-title { font-size:1rem; font-weight:600; margin-bottom:12px; padding-bottom:6px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:6px; margin-top:16px; color:var(--text-secondary); }
 
 /* CART */
 .cart-header { padding:16px 20px; border-bottom:1px solid var(--border); }

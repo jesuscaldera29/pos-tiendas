@@ -96,7 +96,7 @@ const Inventory = {
     document.getElementById('inv-table-body').innerHTML = this.renderTable();
   },
 
-  async showProductForm(productId) {
+  async showProductForm(productId, prefilledBarcode = '') {
     let product = { name: '', barcode: '', price_buy: 0, price_sell: 0, stock: 0, min_stock: 5, category_id: '', unit: 'pieza', expiry_date: '' };
     if (productId) {
       product = this.products.find(p => p.id === productId) || product;
@@ -106,14 +106,17 @@ const Inventory = {
       <div class="modal-body">
         <div class="grid-2">
           <div class="form-group"><label class="form-label">Nombre *</label><input type="text" id="pf-name" class="form-input" value="${product.name}"></div>
-          <div class="form-group"><label class="form-label">Código de barras</label><input type="text" id="pf-barcode" class="form-input" value="${product.barcode || ''}" placeholder="Escanear o escribir"></div>
+          <div class="form-group"><label class="form-label">Código de barras</label><input type="text" id="pf-barcode" class="form-input" value="${product.barcode || prefilledBarcode || ''}" placeholder="Escanear o escribir"></div>
           <div class="form-group"><label class="form-label">Precio Compra</label><input type="number" id="pf-buy" class="form-input" step="0.01" value="${product.price_buy}"></div>
           <div class="form-group"><label class="form-label">Precio Venta *</label><input type="number" id="pf-sell" class="form-input" step="0.01" value="${product.price_sell}"></div>
           <div class="form-group"><label class="form-label">Stock actual</label><input type="number" id="pf-stock" class="form-input" step="0.001" value="${product.stock}"></div>
           <div class="form-group"><label class="form-label">Stock mínimo</label><input type="number" id="pf-minstock" class="form-input" value="${product.min_stock}"></div>
           <div class="form-group"><label class="form-label">Categoría</label>
-            <select id="pf-cat" class="form-select"><option value="">Sin categoría</option>
-            ${this.categories.map(c => `<option value="${c.id}" ${product.category_id === c.id ? 'selected' : ''}>${c.icon} ${c.name}</option>`).join('')}</select>
+            <div class="flex gap-8">
+              <select id="pf-cat" class="form-select" style="flex:1"><option value="">Sin categoría</option>
+              ${this.categories.map(c => `<option value="${c.id}" ${product.category_id === c.id ? 'selected' : ''}>${c.icon} ${c.name}</option>`).join('')}</select>
+              <button class="btn btn-outline" style="padding: 0 12px;" onclick="Inventory.quickAddCategoryPrompt()" type="button">➕</button>
+            </div>
           </div>
           <div class="form-group"><label class="form-label">Unidad</label>
             <select id="pf-unit" class="form-select">
@@ -128,6 +131,45 @@ const Inventory = {
         <button class="btn btn-primary" onclick="Inventory.saveProduct('${productId || ''}')">💾 Guardar</button>
       </div>
     `, 'modal-lg');
+  },
+
+  async quickAddCategoryPrompt() {
+    const name = prompt('Nombre de la nueva categoría:');
+    if (!name) return;
+    const icon = prompt('Icono / Emoji (opcional, ej: 🥤):', '📦') || '📦';
+    
+    try {
+      const newCat = await DB.saveCategory({ name, icon });
+      App.toast('Categoría creada', 'success');
+      
+      // Reload categories list
+      this.categories = await DB.getCategories();
+      
+      // Update the select element in the modal
+      const catSelect = document.getElementById('pf-cat');
+      if (catSelect) {
+        catSelect.innerHTML = `<option value="">Sin categoría</option>` + 
+          this.categories.map(c => `<option value="${c.id}" ${newCat.id === c.id ? 'selected' : ''}>${c.icon} ${c.name}</option>`).join('');
+      }
+    } catch (e) {
+      App.toast('Error al crear categoría: ' + e.message, 'error');
+    }
+  },
+
+  async handleBarcodeScan(code) {
+    if (!code) return;
+    const existing = this.products.find(p => p.barcode === code);
+    if (existing) {
+      this.searchTerm = code;
+      const searchInput = document.querySelector('.inv-toolbar .search-box input');
+      if (searchInput) searchInput.value = code;
+      this.render();
+      App.toast(`Producto encontrado: ${existing.name}`, 'success');
+    } else {
+      if (confirm(`El código "${code}" no está registrado. ¿Deseas registrar un nuevo producto con este código?`)) {
+        this.showProductForm(null, code);
+      }
+    }
   },
 
   async saveProduct(id) {
