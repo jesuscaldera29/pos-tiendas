@@ -10,4 +10,5 @@
 const SUPABASE_URL = 'https://zsguuroeboycudxdzmtm.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_BQdnGotGMpJ5twOGgedUAw_1AAjmrlA';
 
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Instanciamos el cliente y sobrescribimos la variable global para que todos los módulos la usen
+window.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);

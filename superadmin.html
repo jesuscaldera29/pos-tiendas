@@ -141,9 +141,10 @@
         if (error) throw error;
 
         // Link owner profile if exists
-        const { data: ownerProfile } = await supabase.from('profiles').select('id').eq('email', email).single();
+        const { data: ownerProfile } = await supabase.from('profiles').select('id, role').eq('email', email).single();
         if (ownerProfile) {
-          await supabase.from('profiles').update({ business_id: biz.id, role: 'admin' }).eq('id', ownerProfile.id);
+          const newRole = ownerProfile.role === 'superadmin' ? 'superadmin' : 'admin';
+          await supabase.from('profiles').update({ business_id: biz.id, role: newRole }).eq('id', ownerProfile.id);
         }
 
         // Create default categories
