@@ -1,7 +1,7 @@
 const CACHE_NAME = 'pos-tienda-v1';
 const ASSETS = [
-  '/', '/index.html', '/login.html', '/superadmin.html',
-  '/css/styles.css',
+  '/', '/index.html', '/app.html', '/login.html', '/superadmin.html',
+  '/css/styles.css', '/css/landing.css',
   '/js/supabase-config.js', '/js/db.js', '/js/app.js', '/js/pos.js',
   '/js/inventory.js', '/js/customers.js', '/js/cashbox.js',
   '/js/expenses.js', '/js/reports.js', '/js/settings.js',

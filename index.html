@@ -3,102 +3,126 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>POS Tienda - Punto de Venta</title>
-  <meta name="description" content="Sistema de Punto de Venta para tienda de abarrotes">
-  <link rel="stylesheet" href="css/styles.css">
-  <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#0a0a1a">
+  <title>POS Tienda | Sistema de Punto de Venta Inteligente</title>
+  <meta name="description" content="El sistema de punto de venta ideal para tiendas de abarrotes. Multi-caja, control de fiado, lector de códigos y operación 100% offline.">
+  <link rel="stylesheet" href="css/landing.css">
 </head>
 <body>
-  <!-- SIDEBAR -->
-  <nav class="sidebar" id="sidebar">
-    <div class="sidebar-header">
-      <div class="logo">🏪</div>
-      <span class="brand" id="business-name">Mi Tienda</span>
-    </div>
-    <div class="sidebar-nav">
-      <div class="nav-item active" data-section="pos" onclick="App.navigate('pos')">
-        <span class="nav-icon">🛒</span><span class="nav-label">Punto de Venta</span>
-      </div>
-      <div class="nav-item" data-section="inventory" onclick="App.navigate('inventory')">
-        <span class="nav-icon">📦</span><span class="nav-label">Inventario</span>
-      </div>
-      <div class="nav-item" data-section="customers" onclick="App.navigate('customers')">
-        <span class="nav-icon">👥</span><span class="nav-label">Clientes / Fiado</span>
-      </div>
-      <div class="nav-item" data-section="cashbox" onclick="App.navigate('cashbox')">
-        <span class="nav-icon">💰</span><span class="nav-label">Caja</span>
-      </div>
-      <div class="nav-item" data-section="expenses" onclick="App.navigate('expenses')">
-        <span class="nav-icon">💸</span><span class="nav-label">Gastos</span>
-      </div>
-      <div class="nav-item" data-section="reports" onclick="App.navigate('reports')">
-        <span class="nav-icon">📊</span><span class="nav-label">Reportes</span>
-      </div>
-      <div class="nav-item" data-section="settings" onclick="App.navigate('settings')">
-        <span class="nav-icon">⚙️</span><span class="nav-label">Configuración</span>
-      </div>
-    </div>
-    <div class="sidebar-footer">
-      <div class="nav-item" onclick="App.logout()">
-        <span class="nav-icon">🚪</span><span class="nav-label">Cerrar Sesión</span>
-      </div>
+  <!-- Navegación -->
+  <nav class="nav">
+    <a href="#" class="logo">
+      <span class="logo-icon">🏪</span> POS<span style="color:var(--text-muted)">Tienda</span>
+    </a>
+    <div class="nav-links">
+      <a href="#caracteristicas">Características</a>
+      <a href="#como-funciona">Cómo Funciona</a>
+      <a href="login.html" class="btn-login">Iniciar Sesión</a>
     </div>
   </nav>
 
-  <!-- MAIN CONTENT -->
-  <div class="main-content">
-    <!-- TOPBAR -->
-    <div class="topbar">
-      <div class="topbar-left">
-        <button class="toggle-sidebar" onclick="App.toggleSidebar()">☰</button>
-        <h2 id="section-title">Punto de Venta</h2>
-      </div>
-      <div class="topbar-right">
-        <span id="current-date" style="color:var(--text-secondary);font-size:0.85rem;"></span>
-        <span id="user-name" class="badge badge-primary"></span>
+  <!-- Hero Section -->
+  <header class="hero">
+    <span class="badge">✨ Nuevo: Opera 100% Sin Internet</span>
+    <h1>El Punto de Venta Diseñado para tu Tienda de Barrio</h1>
+    <p>Controla tus ventas, maneja el crédito (fiado) de tus clientes, imprime tickets y gestiona tu inventario desde cualquier dispositivo, sin complicaciones.</p>
+    
+    <div class="hero-btns">
+      <a href="login.html" class="btn-primary">Comenzar Gratis</a>
+      <a href="#caracteristicas" class="btn-outline">Ver Funciones</a>
+    </div>
+    
+    <div class="hero-image">
+      <!-- Un placeholder estilizado para representar el POS -->
+      <div style="background:var(--bg-card); height:400px; display:flex; align-items:center; justify-content:center; color:var(--text-muted); font-size:1.2rem; border-radius:12px;">
+        <div style="text-align:center;">
+          <div style="font-size:4rem; margin-bottom:20px;">💻📱</div>
+          Panel de Ventas Rápido y Moderno
+        </div>
       </div>
     </div>
+  </header>
 
-    <!-- SECTIONS -->
-    <div id="section-pos" class="section active"></div>
-    <div id="section-inventory" class="section"></div>
-    <div id="section-customers" class="section"></div>
-    <div id="section-cashbox" class="section"></div>
-    <div id="section-expenses" class="section"></div>
-    <div id="section-reports" class="section"></div>
-    <div id="section-settings" class="section"></div>
-  </div>
+  <!-- Stats -->
+  <section class="stats">
+    <div class="stat-item">
+      <div class="stat-num">100%</div>
+      <div class="stat-label">Funcional Offline</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">0s</div>
+      <div class="stat-label">Retraso en Ventas</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">Multiusuario</div>
+      <div class="stat-label">Cajeros Ilimitados</div>
+    </div>
+  </section>
 
-  <!-- MODAL OVERLAY -->
-  <div class="modal-overlay" id="modal-overlay">
-    <div class="modal" id="modal-content"></div>
-  </div>
+  <!-- Características -->
+  <section id="caracteristicas" class="features">
+    <div class="section-title">
+      <h2>Todo lo que tu negocio necesita</h2>
+      <p>Herramientas profesionales adaptadas a la realidad de las tiendas de abarrotes.</p>
+    </div>
+    
+    <div class="grid">
+      <!-- Feature 1 -->
+      <div class="feature-card">
+        <div class="feature-icon">🛒</div>
+        <h3>Venta Rápida con Escáner</h3>
+        <p>Compatible con cualquier lector de códigos de barras USB o Bluetooth. Cobra en efectivo, tarjeta o mixto en segundos.</p>
+      </div>
+      
+      <!-- Feature 2 -->
+      <div class="feature-card">
+        <div class="feature-icon">📒</div>
+        <h3>Control de Fiado (Crédito)</h3>
+        <p>Lleva la cuenta exacta de lo que te deben. Establece límites de crédito, registra abonos parciales y bloquea clientes morosos automáticamente.</p>
+      </div>
+      
+      <!-- Feature 3 -->
+      <div class="feature-card">
+        <div class="feature-icon">📦</div>
+        <h3>Gestión de Inventario</h3>
+        <p>Alertas de stock bajo, categorías personalizadas y carga masiva mediante Excel. ¡Incluso te damos un catálogo base para empezar!</p>
+      </div>
+      
+      <!-- Feature 4 -->
+      <div class="feature-card">
+        <div class="feature-icon">💰</div>
+        <h3>Cortes de Caja Precisos</h3>
+        <p>Control de turnos, registro de entradas y salidas de efectivo, desglose por método de pago y cálculo de sobrantes/faltantes.</p>
+      </div>
+      
+      <!-- Feature 5 -->
+      <div class="feature-card">
+        <div class="feature-icon">🖨️</div>
+        <h3>Etiquetas y Tickets</h3>
+        <p>Imprime tickets de venta en impresoras térmicas (58/80mm) y genera etiquetas de códigos de barras para tus productos sin código.</p>
+      </div>
+      
+      <!-- Feature 6 -->
+      <div class="feature-card">
+        <div class="feature-icon">🌐</div>
+        <h3>Multi-sucursal SaaS</h3>
+        <p>¿Tienes varias tiendas? Créalas todas desde un solo panel de Super Administrador con bases de datos aisladas y seguras en la nube.</p>
+      </div>
+    </div>
+  </section>
 
-  <!-- TOAST CONTAINER -->
-  <div class="toast-container" id="toast-container"></div>
-
-  <!-- TICKET PRINT AREA -->
-  <div id="ticket-print" class="ticket-print hidden"></div>
-
-  <!-- LIBS -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-
-  <!-- APP MODULES -->
-  <script src="js/supabase-config.js"></script>
-  <script src="js/db.js"></script>
-  <script src="js/sounds.js"></script>
-  <script src="js/tickets.js"></script>
-  <script src="js/barcode.js"></script>
-  <script src="js/pos.js"></script>
-  <script src="js/inventory.js"></script>
-  <script src="js/customers.js"></script>
-  <script src="js/cashbox.js"></script>
-  <script src="js/expenses.js"></script>
-  <script src="js/reports.js"></script>
-  <script src="js/settings.js"></script>
-  <script src="js/app.js"></script>
+  <!-- Footer -->
+  <footer>
+    <div class="footer-logo">
+      <span class="logo-icon">🏪</span> POS Tienda
+    </div>
+    <div class="footer-links">
+      <a href="#">Privacidad</a>
+      <a href="#">Términos</a>
+      <a href="#">Soporte</a>
+    </div>
+    <div class="copyright">
+      &copy; 2026 POS Tienda de Abarrotes. Todos los derechos reservados.
+    </div>
+  </footer>
 </body>
 </html>

@@ -23,8 +23,10 @@ const Inventory = {
         </div>
         <button class="btn btn-primary" onclick="Inventory.showProductForm()">➕ Nuevo Producto</button>
         <button class="btn btn-outline" onclick="Inventory.showCategoryManager()">🏷️ Categorías</button>
+        <button class="btn btn-outline" onclick="Inventory.showBarcodeLabels()">🖨️ Etiquetas</button>
         <button class="btn btn-outline" onclick="Inventory.exportExcel()">📥 Exportar</button>
         <button class="btn btn-outline" onclick="Inventory.importExcel()">📤 Importar</button>
+        <button class="btn btn-outline" onclick="Inventory.downloadBaseCatalog()">📦 Catálogo Base</button>
       </div>
       <div class="tabs">
         <button class="tab ${!this.selectedCategory ? 'active' : ''}" onclick="Inventory.filterCat(null)">Todos (${this.products.length})</button>
@@ -253,5 +255,109 @@ const Inventory = {
       this.render();
     };
     input.click();
+  },
+
+  showBarcodeLabels() {
+    const productsWithBarcode = this.products.filter(p => p.barcode);
+    if (!productsWithBarcode.length) return App.toast('No hay productos con código de barras', 'warning');
+    
+    App.showModal(`
+      <div class="modal-header"><h3>🖨️ Imprimir Etiquetas (Térmica)</h3><button class="modal-close" onclick="App.closeModal()">✕</button></div>
+      <div class="modal-body" style="max-height:60vh;overflow-y:auto;">
+        <p class="text-muted mb-16">Selecciona cuántas etiquetas quieres de cada producto para imprimir en tu ticketera POS.</p>
+        <div id="labels-list">
+          ${productsWithBarcode.map(p => `
+            <div class="flex items-center justify-between mb-8" style="padding:8px; background:var(--bg-surface); border-radius:var(--radius-sm)">
+              <div style="flex:1"><strong>${p.name}</strong><br><small class="text-muted">${p.barcode}</small></div>
+              <input type="number" class="form-input label-qty" data-id="${p.id}" value="0" min="0" style="width:70px">
+            </div>
+          `).join('')}
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="App.closeModal()">Cancelar</button>
+        <button class="btn btn-primary" onclick="Inventory.printLabels()">🖨️ Imprimir</button>
+      </div>
+    `, 'modal-md');
+  },
+
+  printLabels() {
+    const inputs = document.querySelectorAll('.label-qty');
+    const toPrint = [];
+    inputs.forEach(inp => {
+      const qty = parseInt(inp.value) || 0;
+      if (qty > 0) {
+        const p = this.products.find(pr => pr.id === inp.dataset.id);
+        for(let i=0; i<qty; i++) toPrint.push(p);
+      }
+    });
+
+    if(!toPrint.length) return App.toast('Selecciona al menos 1 etiqueta', 'warning');
+
+    const businessName = App.business?.name || 'Mi Tienda';
+    const width = (App.business?.ticket_width || 80) + 'mm';
+    
+    // Create print window
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+      <html>
+      <head>
+        <title>Etiquetas</title>
+        <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+        <style>
+          @page { margin: 0; size: ${width} auto; }
+          body { font-family: 'Courier New', Courier, monospace; width: ${width}; margin: 0; padding: 0; background: #fff; color: #000; }
+          .label { page-break-after: always; padding: 10px 5px; text-align: center; border-bottom: 1px dashed #ccc; }
+          .b-name { font-weight: bold; font-size: 14px; margin-bottom: 5px; }
+          .p-name { font-size: 12px; margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+          .price { font-weight: bold; font-size: 16px; margin-top: 5px; }
+          svg { width: 100%; max-height: 50px; }
+        </style>
+      </head>
+      <body>
+        ${toPrint.map((p, i) => `
+          <div class="label">
+            <div class="b-name">${businessName}</div>
+            <div class="p-name">${p.name}</div>
+            <svg id="barcode-${i}"></svg>
+            <div class="price">$${Number(p.price_sell).toFixed(2)}</div>
+          </div>
+        `).join('')}
+        <script>
+          window.onload = function() {
+            ${toPrint.map((p, i) => `
+              JsBarcode("#barcode-${i}", "${p.barcode}", {
+                format: "CODE128", width: 1.5, height: 40, displayValue: true, fontSize: 12, margin: 0
+              });
+            `).join('')}
+            setTimeout(() => { window.print(); window.close(); }, 500);
+          };
+        </script>
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
+    App.closeModal();
+  },
+
+  downloadBaseCatalog() {
+    const baseProducts = [
+      { Nombre: 'Coca-Cola Regular 600ml', Código: '7501055300075', PrecioCompra: 12.00, PrecioVenta: 18.00, Stock: 50, StockMin: 10, Unidad: 'pieza', Categoría: 'Bebidas' },
+      { Nombre: 'Pepsi Regular 600ml', Código: '7501031311304', PrecioCompra: 11.00, PrecioVenta: 16.00, Stock: 40, StockMin: 10, Unidad: 'pieza', Categoría: 'Bebidas' },
+      { Nombre: 'Sabritas Sal Original 42g', Código: '7501011131068', PrecioCompra: 10.00, PrecioVenta: 16.00, Stock: 30, StockMin: 5, Unidad: 'pieza', Categoría: 'Botanas' },
+      { Nombre: 'Doritos Nacho 58g', Código: '7501011131136', PrecioCompra: 10.50, PrecioVenta: 16.00, Stock: 30, StockMin: 5, Unidad: 'pieza', Categoría: 'Botanas' },
+      { Nombre: 'Gansito Marinela 50g', Código: '7501000153101', PrecioCompra: 11.00, PrecioVenta: 17.00, Stock: 20, StockMin: 5, Unidad: 'pieza', Categoría: 'Panadería' },
+      { Nombre: 'Bimbo Pan Blanco Chico', Código: '7501000111200', PrecioCompra: 28.00, PrecioVenta: 36.00, Stock: 15, StockMin: 3, Unidad: 'pieza', Categoría: 'Panadería' },
+      { Nombre: 'Leche Lala Entera 1L', Código: '7501020515435', PrecioCompra: 21.00, PrecioVenta: 26.00, Stock: 20, StockMin: 5, Unidad: 'pieza', Categoría: 'Lácteos' },
+      { Nombre: 'Nutri Leche 1L', Código: '7501020540444', PrecioCompra: 16.00, PrecioVenta: 21.00, Stock: 20, StockMin: 5, Unidad: 'pieza', Categoría: 'Lácteos' },
+      { Nombre: 'Atún Dolores en Agua 140g', Código: '7501040001555', PrecioCompra: 14.50, PrecioVenta: 21.00, Stock: 24, StockMin: 6, Unidad: 'pieza', Categoría: 'Abarrotes' },
+      { Nombre: 'Maruchan Camarón Limón', Código: '041789001214', PrecioCompra: 11.00, PrecioVenta: 16.00, Stock: 40, StockMin: 10, Unidad: 'pieza', Categoría: 'Abarrotes' }
+    ];
+
+    const ws = XLSX.utils.json_to_sheet(baseProducts);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Plantilla Base');
+    XLSX.writeFile(wb, \`catalogo_base.xlsx\`);
+    App.toast('Catálogo descargado, ahora puedes importarlo', 'success');
   }
 };
