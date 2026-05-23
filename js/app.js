@@ -55,7 +55,11 @@ const App = {
     DB.init(profile.business_id, profile.id);
     Sounds.init();
     Tickets.init(this.business);
-    BarcodeScanner.init((code) => POS.onBarcodeKey({ key: 'Enter', preventDefault: () => {} }));
+    BarcodeScanner.init((code) => {
+      if (App.currentSection === 'pos') {
+        POS.handleBarcodeScan(code);
+      }
+    });
 
     // Update UI
     document.getElementById('business-name').textContent = this.business?.name || 'Mi Tienda';

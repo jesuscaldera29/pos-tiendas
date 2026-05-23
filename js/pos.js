@@ -200,10 +200,16 @@ const POS = {
     const input = document.getElementById('barcode-input');
     const code = input.value.trim();
     if (!code) return;
+    await this.handleBarcodeScan(code);
+  },
+
+  async handleBarcodeScan(code) {
+    if (!code) return;
     const product = await DB.getProductByBarcode(code);
     if (product) {
       this.addToCart(product.id);
-      input.value = '';
+      const input = document.getElementById('barcode-input');
+      if (input) input.value = '';
     } else {
       App.toast('Producto no encontrado: ' + code, 'error');
       Sounds.play('error');
