@@ -12,23 +12,45 @@ const DB = {
 
   // ---- PRODUCTS ----
   async getProducts(filters = {}) {
-    let q = supabase.from('products').select('*, categories(name, icon, color)').eq('business_id', this.businessId).eq('is_active', true).order('name');
-    if (filters.category_id) q = q.eq('category_id', filters.category_id);
-    if (filters.search) q = q.ilike('name', `%${filters.search}%`);
-    if (filters.lowStock) q = q.lte('stock', 'min_stock');
-    const { data, error } = await q;
-    if (error) throw error;
-    return data || [];
+    try {
+      let q = supabase.from('products').select('*, categories(name, icon, color)').eq('business_id', this.businessId).eq('is_active', true).order('name');
+      if (filters.category_id) q = q.eq('category_id', filters.category_id);
+      if (filters.search) q = q.ilike('name', `%${filters.search}%`);
+      if (filters.lowStock) q = q.lte('stock', 'min_stock');
+      const { data, error } = await q;
+      if (error) throw error;
+      return data || [];
+    } catch (err) {
+      console.warn("Failed fetching products with categories join, retrying without join:", err);
+      let q = supabase.from('products').select('*').eq('business_id', this.businessId).eq('is_active', true).order('name');
+      if (filters.category_id) q = q.eq('category_id', filters.category_id);
+      if (filters.search) q = q.ilike('name', `%${filters.search}%`);
+      const { data, error } = await q;
+      if (error) throw error;
+      return data || [];
+    }
   },
 
   async getProductByBarcode(barcode) {
-    const { data } = await supabase.from('products').select('*, categories(name, icon, color)').eq('business_id', this.businessId).eq('barcode', barcode).eq('is_active', true).single();
-    return data;
+    try {
+      const { data } = await supabase.from('products').select('*, categories(name, icon, color)').eq('business_id', this.businessId).eq('barcode', barcode).eq('is_active', true).single();
+      return data;
+    } catch (err) {
+      console.warn("Failed getProductByBarcode with join, retrying without join:", err);
+      const { data } = await supabase.from('products').select('*').eq('business_id', this.businessId).eq('barcode', barcode).eq('is_active', true).single();
+      return data;
+    }
   },
 
   async getProductById(id) {
-    const { data } = await supabase.from('products').select('*, categories(name, icon, color)').eq('id', id).single();
-    return data;
+    try {
+      const { data } = await supabase.from('products').select('*, categories(name, icon, color)').eq('id', id).single();
+      return data;
+    } catch (err) {
+      console.warn("Failed getProductById with join, retrying without join:", err);
+      const { data } = await supabase.from('products').select('*').eq('id', id).single();
+      return data;
+    }
   },
 
   async saveProduct(product) {

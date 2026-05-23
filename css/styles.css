@@ -297,3 +297,21 @@ tr:last-child td { border-bottom:none; }
   .payment-methods { grid-template-columns:1fr 1fr; }
   .inv-toolbar { flex-direction:column; }
 }
+
+.floating-cart-btn {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 100;
+  display: none;
+  box-shadow: 0 4px 12px rgba(108,99,255,0.4);
+  border-radius: 50px;
+  padding: 12px 24px;
+}
+.close-cart-btn {
+  display: none;
+}
+@media(max-width:1024px) {
+  .floating-cart-btn { display: inline-flex; }
+  .close-cart-btn { display: inline-block; }
+}

@@ -6,7 +6,20 @@ const Customers = {
   searchTerm: '',
 
   async render() {
-    this.customers = await DB.getCustomers();
+    try {
+      this.customers = await DB.getCustomers();
+    } catch (err) {
+      console.error("Error loading customers:", err);
+      document.getElementById('section-customers').innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon">❌</div>
+          <h3>Error al cargar los clientes</h3>
+          <p class="text-muted">${err.message || JSON.stringify(err)}</p>
+          <button class="btn btn-primary mt-16" onclick="Customers.render()">🔄 Reintentar</button>
+        </div>
+      `;
+      return;
+    }
     const totalDebt = this.customers.reduce((s, c) => s + (c.balance || 0), 0);
     const debtors = this.customers.filter(c => c.balance > 0);
 

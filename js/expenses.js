@@ -11,7 +11,20 @@ const Expenses = {
     const today = new Date().toISOString().split('T')[0];
     if (!this.dateFrom) this.dateFrom = today;
     if (!this.dateTo) this.dateTo = today;
-    this.expenses = await DB.getExpenses(this.dateFrom + 'T00:00:00', this.dateTo + 'T23:59:59');
+    try {
+      this.expenses = await DB.getExpenses(this.dateFrom + 'T00:00:00', this.dateTo + 'T23:59:59');
+    } catch (err) {
+      console.error("Error loading expenses:", err);
+      document.getElementById('section-expenses').innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon">❌</div>
+          <h3>Error al cargar los gastos</h3>
+          <p class="text-muted">${err.message || JSON.stringify(err)}</p>
+          <button class="btn btn-primary mt-16" onclick="Expenses.render()">🔄 Reintentar</button>
+        </div>
+      `;
+      return;
+    }
     const total = this.expenses.reduce((s, e) => s + e.amount, 0);
     const byCategory = {};
     this.expenses.forEach(e => { byCategory[e.category] = (byCategory[e.category] || 0) + e.amount; });

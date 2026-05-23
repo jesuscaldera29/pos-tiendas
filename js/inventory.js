@@ -8,8 +8,21 @@ const Inventory = {
   selectedCategory: null,
 
   async render() {
-    this.products = await DB.getProducts();
-    this.categories = await DB.getCategories();
+    try {
+      this.products = await DB.getProducts();
+      this.categories = await DB.getCategories();
+    } catch (err) {
+      console.error("Error loading inventory:", err);
+      document.getElementById('section-inventory').innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon">❌</div>
+          <h3>Error al cargar el inventario</h3>
+          <p class="text-muted">${err.message || JSON.stringify(err)}</p>
+          <button class="btn btn-primary mt-16" onclick="Inventory.render()">🔄 Reintentar</button>
+        </div>
+      `;
+      return;
+    }
     const lowStock = this.products.filter(p => p.stock <= p.min_stock);
 
     document.getElementById('section-inventory').innerHTML = `

@@ -5,7 +5,20 @@ const Cashbox = {
   session: null,
 
   async render() {
-    this.session = await DB.getCurrentSession();
+    try {
+      this.session = await DB.getCurrentSession();
+    } catch (err) {
+      console.error("Error loading cashbox session:", err);
+      document.getElementById('section-cashbox').innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon">❌</div>
+          <h3>Error al cargar la caja</h3>
+          <p class="text-muted">${err.message || JSON.stringify(err)}</p>
+          <button class="btn btn-primary mt-16" onclick="Cashbox.render()">🔄 Reintentar</button>
+        </div>
+      `;
+      return;
+    }
     const container = document.getElementById('section-cashbox');
 
     if (!this.session) {

@@ -59,7 +59,6 @@ const App = {
 
     // Update UI
     document.getElementById('business-name').textContent = this.business?.name || 'Mi Tienda';
-    document.getElementById('user-name').textContent = profile.full_name || profile.email;
     this.updateDate();
     setInterval(() => this.updateDate(), 60000);
 
@@ -88,13 +87,21 @@ const App = {
     // Update title
     const titles = { pos: 'Punto de Venta', inventory: 'Inventario', customers: 'Clientes / Fiado', cashbox: 'Caja', expenses: 'Gastos', reports: 'Reportes', settings: 'Configuración' };
     document.getElementById('section-title').textContent = titles[section] || section;
+    // Close sidebar on mobile
+    if (window.innerWidth <= 768) {
+      document.getElementById('sidebar').classList.remove('open');
+    }
     // Render module
     const modules = { pos: POS, inventory: Inventory, customers: Customers, cashbox: Cashbox, expenses: Expenses, reports: Reports, settings: Settings };
     modules[section]?.render();
   },
 
   toggleSidebar() {
-    document.getElementById('sidebar').classList.toggle('collapsed');
+    if (window.innerWidth <= 768) {
+      document.getElementById('sidebar').classList.toggle('open');
+    } else {
+      document.getElementById('sidebar').classList.toggle('collapsed');
+    }
   },
 
   updateDate() {
@@ -148,4 +155,11 @@ document.addEventListener('keydown', (e) => {
 });
 
 // Init app
-document.addEventListener('DOMContentLoaded', () => App.init());
+document.addEventListener('DOMContentLoaded', () => {
+  App.init();
+  document.querySelector('.main-content')?.addEventListener('click', () => {
+    if (window.innerWidth <= 768) {
+      document.getElementById('sidebar')?.classList.remove('open');
+    }
+  });
+});

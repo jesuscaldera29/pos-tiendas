@@ -10,8 +10,22 @@ const POS = {
   discount: 0,
 
   async render() {
-    this.products = await DB.getProducts();
-    this.categories = await DB.getCategories();
+    try {
+      this.products = await DB.getProducts();
+      this.categories = await DB.getCategories();
+    } catch (err) {
+      console.error("Error loading POS data:", err);
+      const container = document.getElementById('section-pos');
+      container.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon">❌</div>
+          <h3>Error al cargar el Punto de Venta</h3>
+          <p class="text-muted">${err.message || JSON.stringify(err)}</p>
+          <button class="btn btn-primary mt-16" onclick="POS.render()">🔄 Reintentar</button>
+        </div>
+      `;
+      return;
+    }
     const container = document.getElementById('section-pos');
     container.innerHTML = `
       <div class="pos-container">
@@ -36,7 +50,10 @@ const POS = {
         <div class="pos-cart" id="pos-cart">
           <div class="cart-header flex items-center justify-between">
             <h3>🛒 Carrito <span id="cart-count" class="badge badge-primary">${this.cart.length}</span></h3>
-            <button class="btn btn-ghost btn-sm" onclick="POS.clearCart()" ${this.cart.length === 0 ? 'disabled' : ''}>Limpiar</button>
+            <div class="flex gap-8">
+              <button class="btn btn-ghost btn-sm" onclick="POS.clearCart()" ${this.cart.length === 0 ? 'disabled' : ''}>Limpiar</button>
+              <button class="btn btn-ghost btn-sm close-cart-btn" onclick="POS.toggleCart()">✕</button>
+            </div>
           </div>
           <div class="cart-items" id="cart-items">
             ${this.renderCartItems()}
@@ -46,6 +63,9 @@ const POS = {
           </div>
         </div>
       </div>
+      <button class="btn btn-primary floating-cart-btn" onclick="POS.toggleCart()">
+        🛒 Carrito (<span id="floating-cart-count">${this.cart.length}</span>)
+      </button>
     `;
     document.getElementById('barcode-input')?.focus();
   },
@@ -111,9 +131,15 @@ const POS = {
     const cartItems = document.getElementById('cart-items');
     const cartFooter = document.querySelector('.cart-footer');
     const cartCount = document.getElementById('cart-count');
+    const floatingCartCount = document.getElementById('floating-cart-count');
     if (cartItems) cartItems.innerHTML = this.renderCartItems();
     if (cartFooter) cartFooter.innerHTML = this.renderCartTotals();
     if (cartCount) cartCount.textContent = this.cart.length;
+    if (floatingCartCount) floatingCartCount.textContent = this.cart.length;
+  },
+
+  toggleCart() {
+    document.getElementById('pos-cart')?.classList.toggle('open');
   },
 
   async addToCart(productId) {
@@ -352,6 +378,11 @@ const POS = {
       this.products = await DB.getProducts();
       this.refreshCart();
       document.getElementById('product-grid').innerHTML = this.renderProducts();
+      
+      // Close cart on mobile
+      if (window.innerWidth <= 1024) {
+        document.getElementById('pos-cart')?.classList.remove('open');
+      }
     } catch (err) {
       App.toast('Error al procesar venta: ' + err.message, 'error');
       btn.disabled = false;

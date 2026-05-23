@@ -12,13 +12,27 @@ const Reports = {
     if (!this.dateFrom) this.dateFrom = weekAgo;
     if (!this.dateTo) this.dateTo = today;
 
-    const report = await DB.getSalesReport(this.dateFrom + 'T00:00:00', this.dateTo + 'T23:59:59');
-    const topProducts = await DB.getTopProducts(this.dateFrom + 'T00:00:00', this.dateTo + 'T23:59:59');
-    const lowStock = await DB.getLowStockProducts();
-    const totalCredit = await DB.getTotalCredit();
-    const expenses = await DB.getExpenses(this.dateFrom + 'T00:00:00', this.dateTo + 'T23:59:59');
-    const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0);
-    const profit = report.totalSales - totalExpenses;
+    let report, topProducts, lowStock, totalCredit, expenses, totalExpenses, profit;
+    try {
+      report = await DB.getSalesReport(this.dateFrom + 'T00:00:00', this.dateTo + 'T23:59:59');
+      topProducts = await DB.getTopProducts(this.dateFrom + 'T00:00:00', this.dateTo + 'T23:59:59');
+      lowStock = await DB.getLowStockProducts();
+      totalCredit = await DB.getTotalCredit();
+      expenses = await DB.getExpenses(this.dateFrom + 'T00:00:00', this.dateTo + 'T23:59:59');
+      totalExpenses = expenses.reduce((s, e) => s + e.amount, 0);
+      profit = report.totalSales - totalExpenses;
+    } catch (err) {
+      console.error("Error loading reports data:", err);
+      document.getElementById('section-reports').innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon">❌</div>
+          <h3>Error al cargar los reportes</h3>
+          <p class="text-muted">${err.message || JSON.stringify(err)}</p>
+          <button class="btn btn-primary mt-16" onclick="Reports.render()">🔄 Reintentar</button>
+        </div>
+      `;
+      return;
+    }
 
     document.getElementById('section-reports').innerHTML = `
       <div class="inv-toolbar mb-24">

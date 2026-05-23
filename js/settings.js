@@ -5,7 +5,20 @@ const Settings = {
   business: null,
 
   async render() {
-    this.business = await DB.getBusiness();
+    try {
+      this.business = await DB.getBusiness();
+    } catch (err) {
+      console.error("Error loading settings:", err);
+      document.getElementById('section-settings').innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon">❌</div>
+          <h3>Error al cargar la configuración</h3>
+          <p class="text-muted">${err.message || JSON.stringify(err)}</p>
+          <button class="btn btn-primary mt-16" onclick="Settings.render()">🔄 Reintentar</button>
+        </div>
+      `;
+      return;
+    }
     const b = this.business || {};
 
     document.getElementById('section-settings').innerHTML = `
