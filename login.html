@@ -86,13 +86,19 @@
     });
 
     async function redirectUser(user) {
-      const { data: profile } = await supabase
+      const { data: profile, error } = await supabase
         .from('profiles')
         .select('role, business_id')
         .eq('id', user.id)
         .single();
 
-      if (!profile) return;
+      if (error || !profile) {
+        showError('No se encontró tu perfil. Si tu cuenta es muy antigua, bórrala en Supabase y regístrate de nuevo.');
+        const btn = document.getElementById('login-btn');
+        btn.disabled = false;
+        btn.textContent = 'Iniciar Sesión';
+        return;
+      }
 
       if (profile.role === 'superadmin') {
         window.location.href = 'superadmin.html';
