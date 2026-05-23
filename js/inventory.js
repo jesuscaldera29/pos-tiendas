@@ -370,7 +370,7 @@ const Inventory = {
     const ws = XLSX.utils.json_to_sheet(baseProducts);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Plantilla Base');
-    XLSX.writeFile(wb, \`catalogo_base.xlsx\`);
+    XLSX.writeFile(wb, `catalogo_base.xlsx`);
     App.toast('Catálogo descargado, ahora puedes importarlo', 'success');
   }
 };
