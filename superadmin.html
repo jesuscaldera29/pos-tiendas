@@ -99,6 +99,7 @@
               <div class="biz-stat"><div class="stat-val">${new Date(b.created_at).toLocaleDateString('es-MX', {month:'short',day:'numeric'})}</div><div class="stat-label">Creado</div></div>
             </div>
             <div class="flex gap-8 mt-16">
+              <button class="btn btn-primary btn-sm" onclick="window.open('app.html?biz=${b.id}', '_blank')">🚪 Entrar</button>
               <button class="btn btn-outline btn-sm" onclick="editBiz('${b.id}','${b.name}','${b.address||''}','${b.phone||''}','${b.owner_email}','${b.slug}',${b.is_active})">✏️ Editar</button>
               <button class="btn btn-outline btn-sm" onclick="toggleBiz('${b.id}',${b.is_active})">${b.is_active ? '⏸️ Desactivar' : '▶️ Activar'}</button>
               <button class="btn btn-ghost btn-sm text-danger" onclick="deleteBiz('${b.id}')">🗑️</button>

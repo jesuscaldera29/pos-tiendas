@@ -19,12 +19,33 @@ const App = {
       .eq('id', this.user.id).single();
 
     if (!profile) { window.location.href = 'login.html'; return; }
-    if (profile.role === 'superadmin') { window.location.href = 'superadmin.html'; return; }
-    if (!profile.business_id) {
-      alert('Tu cuenta no tiene un negocio asignado. Contacta al administrador.');
-      await supabase.auth.signOut();
-      window.location.href = 'login.html';
-      return;
+    
+    // SuperAdmin impersonation check
+    const urlParams = new URLSearchParams(window.location.search);
+    const targetBiz = urlParams.get('biz');
+
+    if (profile.role === 'superadmin') {
+      if (targetBiz) {
+        // Log in as target business
+        profile.business_id = targetBiz;
+        const { data: targetBusiness } = await supabase.from('businesses').select('*').eq('id', targetBiz).single();
+        if (!targetBusiness) { alert('Negocio no encontrado'); window.location.href = 'superadmin.html'; return; }
+        profile.businesses = targetBusiness;
+        
+        // Add a visual indicator for Superadmin
+        document.body.style.borderTop = '4px solid var(--warning)';
+        App.toast('Modo SuperAdmin: ' + targetBusiness.name, 'warning');
+      } else {
+        window.location.href = 'superadmin.html'; 
+        return;
+      }
+    } else {
+      if (!profile.business_id) {
+        alert('Tu cuenta no tiene un negocio asignado. Contacta al administrador.');
+        await supabase.auth.signOut();
+        window.location.href = 'login.html';
+        return;
+      }
     }
 
     this.profile = profile;
