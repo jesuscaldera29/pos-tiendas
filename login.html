@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>POS Tienda - Iniciar Sesión</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="manifest" href="manifest.json">
+  <style>
+    .login-bg { position:fixed; inset:0; z-index:-1; }
+    .login-bg::before { content:''; position:absolute; width:400px; height:400px; background:radial-gradient(circle,rgba(108,99,255,0.15),transparent 70%); top:-100px; right:-100px; }
+    .login-bg::after { content:''; position:absolute; width:300px; height:300px; background:radial-gradient(circle,rgba(0,217,166,0.1),transparent 70%); bottom:-50px; left:-50px; }
+    .login-error { background:rgba(255,107,107,0.1); border:1px solid var(--danger); color:var(--danger); padding:10px 16px; border-radius:var(--radius-sm); font-size:0.85rem; margin-bottom:16px; display:none; }
+    .login-error.show { display:block; }
+    .divider { text-align:center; color:var(--text-muted); font-size:0.8rem; margin:20px 0; position:relative; }
+    .divider::before,.divider::after { content:''; position:absolute; top:50%; width:40%; height:1px; background:var(--border); }
+    .divider::before { left:0; }
+    .divider::after { right:0; }
+  </style>
+</head>
+<body>
+  <div class="login-bg"></div>
+  <div class="login-container">
+    <div class="login-box">
+      <div class="logo-wrapper">
+        <div class="logo-icon">🏪</div>
+      </div>
+      <h1>POS Tienda</h1>
+      <p class="subtitle">Sistema de Punto de Venta</p>
+
+      <div id="login-error" class="login-error"></div>
+
+      <form id="login-form">
+        <div class="form-group">
+          <label class="form-label">Correo electrónico</label>
+          <input type="email" id="login-email" class="form-input" placeholder="tu@correo.com" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Contraseña</label>
+          <input type="password" id="login-password" class="form-input" placeholder="••••••••" required>
+        </div>
+        <button type="submit" class="btn btn-primary w-full btn-lg" id="login-btn">
+          Iniciar Sesión
+        </button>
+      </form>
+
+      <div class="divider">o</div>
+
+      <button class="btn btn-outline w-full" id="signup-btn">Crear cuenta nueva</button>
+
+      <div id="signup-form" class="hidden" style="margin-top:20px;">
+        <div class="form-group">
+          <label class="form-label">Nombre completo</label>
+          <input type="text" id="signup-name" class="form-input" placeholder="Tu nombre">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Correo electrónico</label>
+          <input type="email" id="signup-email" class="form-input" placeholder="tu@correo.com">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Contraseña</label>
+          <input type="password" id="signup-password" class="form-input" placeholder="Mínimo 6 caracteres">
+        </div>
+        <button class="btn btn-success w-full" id="do-signup-btn">Registrarse</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase-config.js"></script>
+  <script>
+    const loginForm = document.getElementById('login-form');
+    const errorDiv = document.getElementById('login-error');
+    const signupBtn = document.getElementById('signup-btn');
+    const signupForm = document.getElementById('signup-form');
+
+    function showError(msg) {
+      errorDiv.textContent = msg;
+      errorDiv.classList.add('show');
+      setTimeout(() => errorDiv.classList.remove('show'), 5000);
+    }
+
+    // Check if already logged in
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) redirectUser(session.user);
+    });
+
+    async function redirectUser(user) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role, business_id')
+        .eq('id', user.id)
+        .single();
+
+      if (!profile) return;
+
+      if (profile.role === 'superadmin') {
+        window.location.href = 'superadmin.html';
+      } else if (profile.business_id) {
+        window.location.href = 'index.html';
+      } else {
+        showError('Tu cuenta no tiene un negocio asignado. Contacta al administrador.');
+      }
+    }
+
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('login-email').value;
+      const password = document.getElementById('login-password').value;
+      const btn = document.getElementById('login-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Ingresando...';
+
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        showError(error.message);
+        btn.disabled = false;
+        btn.textContent = 'Iniciar Sesión';
+        return;
+      }
+      redirectUser(data.user);
+    });
+
+    signupBtn.addEventListener('click', () => {
+      signupForm.classList.toggle('hidden');
+      signupBtn.textContent = signupForm.classList.contains('hidden') ? 'Crear cuenta nueva' : 'Cancelar';
+    });
+
+    document.getElementById('do-signup-btn').addEventListener('click', async () => {
+      const name = document.getElementById('signup-name').value;
+      const email = document.getElementById('signup-email').value;
+      const password = document.getElementById('signup-password').value;
+      if (!email || !password) return showError('Completa todos los campos');
+      if (password.length < 6) return showError('La contraseña debe tener al menos 6 caracteres');
+
+      const btn = document.getElementById('do-signup-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span>';
+
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { full_name: name } }
+      });
+      if (error) {
+        showError(error.message);
+        btn.disabled = false;
+        btn.textContent = 'Registrarse';
+        return;
+      }
+      alert('Cuenta creada. Revisa tu correo para confirmar o inicia sesión.');
+      btn.disabled = false;
+      btn.textContent = 'Registrarse';
+    });
+  </script>
+</body>
+</html>

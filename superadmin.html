@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>POS - Super Administrador</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <style>
+    .sa-container { max-width:1200px; margin:0 auto; padding:24px; }
+    .sa-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:32px; padding-bottom:16px; border-bottom:1px solid var(--border); }
+    .sa-header h1 { font-size:1.5rem; display:flex; align-items:center; gap:12px; }
+    .biz-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(350px,1fr)); gap:20px; }
+    .biz-card { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); padding:24px; transition:var(--transition); }
+    .biz-card:hover { border-color:var(--primary); }
+    .biz-card h3 { font-size:1.1rem; margin-bottom:8px; }
+    .biz-card .biz-meta { font-size:0.85rem; color:var(--text-secondary); margin-bottom:12px; }
+    .biz-card .biz-stats { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-top:16px; }
+    .biz-stat { text-align:center; padding:8px; background:var(--bg-surface); border-radius:var(--radius-sm); }
+    .biz-stat .stat-val { font-weight:700; font-size:1.1rem; }
+    .biz-stat .stat-label { font-size:0.7rem; color:var(--text-muted); }
+  </style>
+</head>
+<body>
+  <div class="sa-container">
+    <div class="sa-header">
+      <h1>👑 Super Administrador</h1>
+      <div class="flex gap-12 items-center">
+        <span id="sa-email" class="badge badge-primary"></span>
+        <button class="btn btn-outline btn-sm" onclick="saLogout()">🚪 Salir</button>
+      </div>
+    </div>
+
+    <div class="kpi-grid" id="sa-kpis"></div>
+
+    <div class="flex items-center justify-between mb-24">
+      <h2>🏪 Negocios</h2>
+      <button class="btn btn-primary" onclick="showCreateBiz()">➕ Crear Negocio</button>
+    </div>
+
+    <div class="biz-grid" id="biz-grid"><span class="spinner"></span> Cargando...</div>
+  </div>
+
+  <div class="modal-overlay" id="modal-overlay">
+    <div class="modal" id="modal-content"></div>
+  </div>
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase-config.js"></script>
+  <script>
+    let currentUser = null;
+
+    async function init() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { window.location.href = 'login.html'; return; }
+      currentUser = session.user;
+
+      const { data: profile } = await supabase.from('profiles').select('role').eq('id', currentUser.id).single();
+      if (!profile || profile.role !== 'superadmin') { window.location.href = 'login.html'; return; }
+
+      document.getElementById('sa-email').textContent = currentUser.email;
+      loadBusinesses();
+    }
+
+    async function loadBusinesses() {
+      const { data: businesses } = await supabase.from('businesses').select('*').order('created_at', { ascending: false });
+      const { data: allProfiles } = await supabase.from('profiles').select('business_id, role');
+      const { data: allProducts } = await supabase.from('products').select('business_id').eq('is_active', true);
+
+      const biz = businesses || [];
+      // KPIs
+      document.getElementById('sa-kpis').innerHTML = `
+        <div class="kpi-card primary"><div class="kpi-label">Total Negocios</div><div class="kpi-value">${biz.length}</div></div>
+        <div class="kpi-card success"><div class="kpi-label">Negocios Activos</div><div class="kpi-value">${biz.filter(b => b.is_active).length}</div></div>
+        <div class="kpi-card warning"><div class="kpi-label">Total Usuarios</div><div class="kpi-value">${(allProfiles || []).length}</div></div>
+        <div class="kpi-card info"><div class="kpi-label">Total Productos</div><div class="kpi-value">${(allProducts || []).length}</div></div>
+      `;
+
+      const grid = document.getElementById('biz-grid');
+      if (!biz.length) { grid.innerHTML = '<div class="empty-state"><div class="empty-icon">🏪</div><h3>Sin negocios</h3><p>Crea tu primer negocio</p></div>'; return; }
+
+      grid.innerHTML = biz.map(b => {
+        const users = (allProfiles || []).filter(p => p.business_id === b.id).length;
+        const products = (allProducts || []).filter(p => p.business_id === b.id).length;
+        return `
+          <div class="biz-card">
+            <div class="flex items-center justify-between">
+              <h3>${b.name}</h3>
+              <span class="badge ${b.is_active ? 'badge-success' : 'badge-danger'}">${b.is_active ? 'Activo' : 'Inactivo'}</span>
+            </div>
+            <div class="biz-meta">
+              <div>📍 ${b.address || 'Sin dirección'}</div>
+              <div>📧 ${b.owner_email}</div>
+              <div>🔗 /${b.slug}</div>
+            </div>
+            <div class="biz-stats">
+              <div class="biz-stat"><div class="stat-val">${users}</div><div class="stat-label">Usuarios</div></div>
+              <div class="biz-stat"><div class="stat-val">${products}</div><div class="stat-label">Productos</div></div>
+              <div class="biz-stat"><div class="stat-val">${new Date(b.created_at).toLocaleDateString('es-MX', {month:'short',day:'numeric'})}</div><div class="stat-label">Creado</div></div>
+            </div>
+            <div class="flex gap-8 mt-16">
+              <button class="btn btn-outline btn-sm" onclick="editBiz('${b.id}','${b.name}','${b.address||''}','${b.phone||''}','${b.owner_email}','${b.slug}',${b.is_active})">✏️ Editar</button>
+              <button class="btn btn-outline btn-sm" onclick="toggleBiz('${b.id}',${b.is_active})">${b.is_active ? '⏸️ Desactivar' : '▶️ Activar'}</button>
+              <button class="btn btn-ghost btn-sm text-danger" onclick="deleteBiz('${b.id}')">🗑️</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function showCreateBiz() {
+      showModal(`
+        <div class="modal-header"><h3>➕ Crear Negocio</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
+        <div class="modal-body">
+          <div class="form-group"><label class="form-label">Nombre del negocio *</label><input type="text" id="biz-name" class="form-input" placeholder="Mi Tienda de Abarrotes"></div>
+          <div class="form-group"><label class="form-label">Slug (URL) *</label><input type="text" id="biz-slug" class="form-input" placeholder="mi-tienda" oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9-]/g,'')"></div>
+          <div class="form-group"><label class="form-label">Email del dueño *</label><input type="email" id="biz-email" class="form-input" placeholder="dueño@correo.com"></div>
+          <div class="grid-2">
+            <div class="form-group"><label class="form-label">Dirección</label><input type="text" id="biz-address" class="form-input"></div>
+            <div class="form-group"><label class="form-label">Teléfono</label><input type="text" id="biz-phone" class="form-input"></div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline" onclick="closeModal()">Cancelar</button>
+          <button class="btn btn-primary" onclick="createBiz()">🏪 Crear Negocio</button>
+        </div>
+      `);
+    }
+
+    async function createBiz() {
+      const name = document.getElementById('biz-name').value;
+      const slug = document.getElementById('biz-slug').value;
+      const email = document.getElementById('biz-email').value;
+      const address = document.getElementById('biz-address').value;
+      const phone = document.getElementById('biz-phone').value;
+      if (!name || !slug || !email) return toast('Completa los campos obligatorios', 'error');
+
+      try {
+        // Create business
+        const { data: biz, error } = await supabase.from('businesses').insert({ name, slug, owner_email: email, address, phone }).select().single();
+        if (error) throw error;
+
+        // Link owner profile if exists
+        const { data: ownerProfile } = await supabase.from('profiles').select('id').eq('email', email).single();
+        if (ownerProfile) {
+          await supabase.from('profiles').update({ business_id: biz.id, role: 'admin' }).eq('id', ownerProfile.id);
+        }
+
+        // Create default categories
+        const defaultCats = [
+          { name: 'Abarrotes', icon: '🛒' }, { name: 'Bebidas', icon: '🥤' },
+          { name: 'Lácteos', icon: '🥛' }, { name: 'Limpieza', icon: '🧹' },
+          { name: 'Dulces', icon: '🍬' }, { name: 'Frutas y Verduras', icon: '🍎' },
+          { name: 'Carnes', icon: '🥩' }, { name: 'Pan', icon: '🍞' },
+          { name: 'Otros', icon: '📦' }
+        ];
+        await supabase.from('categories').insert(defaultCats.map(c => ({ ...c, business_id: biz.id })));
+
+        // Create default expense categories
+        await supabase.from('expense_categories').insert([
+          { name: 'Renta', icon: '🏠', business_id: biz.id },
+          { name: 'Luz', icon: '💡', business_id: biz.id },
+          { name: 'Agua', icon: '💧', business_id: biz.id },
+          { name: 'Proveedores', icon: '🚛', business_id: biz.id },
+          { name: 'Personal', icon: '👤', business_id: biz.id },
+        ]);
+
+        toast('Negocio creado exitosamente', 'success');
+        closeModal();
+        loadBusinesses();
+      } catch (e) { toast('Error: ' + e.message, 'error'); }
+    }
+
+    function editBiz(id, name, address, phone, email, slug, isActive) {
+      showModal(`
+        <div class="modal-header"><h3>✏️ Editar Negocio</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
+        <div class="modal-body">
+          <div class="form-group"><label class="form-label">Nombre</label><input type="text" id="edit-name" class="form-input" value="${name}"></div>
+          <div class="form-group"><label class="form-label">Slug</label><input type="text" id="edit-slug" class="form-input" value="${slug}"></div>
+          <div class="form-group"><label class="form-label">Email dueño</label><input type="email" id="edit-email" class="form-input" value="${email}"></div>
+          <div class="grid-2">
+            <div class="form-group"><label class="form-label">Dirección</label><input type="text" id="edit-address" class="form-input" value="${address}"></div>
+            <div class="form-group"><label class="form-label">Teléfono</label><input type="text" id="edit-phone" class="form-input" value="${phone}"></div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline" onclick="closeModal()">Cancelar</button>
+          <button class="btn btn-primary" onclick="updateBiz('${id}')">💾 Guardar</button>
+        </div>
+      `);
+    }
+
+    async function updateBiz(id) {
+      try {
+        await supabase.from('businesses').update({
+          name: document.getElementById('edit-name').value,
+          slug: document.getElementById('edit-slug').value,
+          owner_email: document.getElementById('edit-email').value,
+          address: document.getElementById('edit-address').value,
+          phone: document.getElementById('edit-phone').value,
+        }).eq('id', id);
+        toast('Negocio actualizado', 'success');
+        closeModal();
+        loadBusinesses();
+      } catch (e) { toast('Error: ' + e.message, 'error'); }
+    }
+
+    async function toggleBiz(id, isActive) {
+      await supabase.from('businesses').update({ is_active: !isActive }).eq('id', id);
+      toast(isActive ? 'Negocio desactivado' : 'Negocio activado', 'success');
+      loadBusinesses();
+    }
+
+    async function deleteBiz(id) {
+      if (!confirm('⚠️ ¿Estás seguro? Esto eliminará TODOS los datos del negocio.')) return;
+      if (!confirm('⚠️ Esta acción NO se puede deshacer. ¿Continuar?')) return;
+      await supabase.from('businesses').delete().eq('id', id);
+      toast('Negocio eliminado', 'success');
+      loadBusinesses();
+    }
+
+    // Modal & Toast helpers
+    function showModal(html) {
+      document.getElementById('modal-content').innerHTML = html;
+      document.getElementById('modal-overlay').classList.add('active');
+    }
+    function closeModal() { document.getElementById('modal-overlay').classList.remove('active'); }
+    function toast(msg, type = 'info') {
+      const icons = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️' };
+      const t = document.createElement('div');
+      t.className = `toast ${type}`;
+      t.innerHTML = `<span>${icons[type]||''}</span><span>${msg}</span>`;
+      document.getElementById('toast-container').appendChild(t);
+      setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 4000);
+    }
+    async function saLogout() { await supabase.auth.signOut(); window.location.href = 'login.html'; }
+
+    document.getElementById('modal-overlay').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
+    document.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>
