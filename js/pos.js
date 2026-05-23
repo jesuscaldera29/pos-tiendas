@@ -34,6 +34,7 @@ const POS = {
           <div class="barcode-input-wrapper">
             <input type="text" id="barcode-input" placeholder="🔍 Escanear código o buscar producto..." autofocus
               oninput="POS.onSearch(this.value)" onkeydown="POS.onBarcodeKey(event)">
+            <button class="btn btn-outline" style="padding:0 12px;" onclick="App.startCameraScanner(code => POS.handleBarcodeScan(code))">📷</button>
             <button class="btn btn-primary" onclick="POS.quickSalePrompt()">💲 Venta rápida</button>
           </div>
           <div class="tabs" id="category-tabs">
@@ -202,15 +203,172 @@ const POS = {
     document.getElementById('pos-cart')?.classList.toggle('open');
   },
 
-  async addToCart(productId) {
-    const existing = this.cart.findIndex(i => i.productId === productId);
+  weightMode: 'kg',
+
+  showWeightModal(p) {
+    this.weightMode = 'kg';
+    App.showModal(`
+      <div class="modal-header"><h3>⚖️ Venta por Peso: ${p.name}</h3><button class="modal-close" onclick="App.closeModal()">✕</button></div>
+      <div class="modal-body">
+        <p class="text-muted mb-16">Precio por kg: <strong>$${Number(p.price_sell).toFixed(2)}</strong></p>
+        <div class="tabs mb-16" id="weight-input-tabs">
+          <button class="tab active" onclick="POS.setWeightInputMode('kg')">⚖️ Kilogramos (kg)</button>
+          <button class="tab" onclick="POS.setWeightInputMode('money')">💲 Monto en Dinero ($)</button>
+        </div>
+        <div class="form-group" id="weight-val-group">
+          <label class="form-label" id="weight-input-label">Cantidad en kg</label>
+          <input type="number" id="weight-input-value" class="form-input" placeholder="0.000" step="0.001" oninput="POS.calculateWeightPreview(${p.price_sell})">
+        </div>
+        <div class="mt-16 text-center" style="font-size:1.2rem;">
+          Total: <strong style="color:var(--success)" id="weight-preview-total">$0.00</strong>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="App.closeModal()">Cancelar</button>
+        <button class="btn btn-primary" onclick="POS.confirmWeightAddToCart('${p.id}', ${p.price_sell})">Agregar</button>
+      </div>
+    `);
+    setTimeout(() => document.getElementById('weight-input-value')?.focus(), 200);
+  },
+
+  setWeightInputMode(mode) {
+    this.weightMode = mode;
+    document.querySelectorAll('#weight-input-tabs .tab').forEach(t => t.classList.remove('active'));
+    event.target.classList.add('active');
+
+    const label = document.getElementById('weight-input-label');
+    const input = document.getElementById('weight-input-value');
+    if (mode === 'kg') {
+      if (label) label.textContent = 'Cantidad en kg';
+      if (input) input.placeholder = '0.000';
+    } else {
+      if (label) label.textContent = 'Monto en Dinero ($)';
+      if (input) input.placeholder = '0.00';
+    }
+    if (input) {
+      input.value = '';
+      input.focus();
+    }
+    const preview = document.getElementById('weight-preview-total');
+    if (preview) preview.textContent = '$0.00';
+  },
+
+  calculateWeightPreview(price) {
+    const val = parseFloat(document.getElementById('weight-input-value').value) || 0;
+    const preview = document.getElementById('weight-preview-total');
+    if (!preview) return;
+
+    if (this.weightMode === 'kg') {
+      preview.textContent = `$${(val * price).toFixed(2)}`;
+    } else {
+      preview.textContent = `Equivale a: ${(val / price).toFixed(3)} kg`;
+    }
+  },
+
+  async confirmWeightAddToCart(productId, price) {
+    const val = parseFloat(document.getElementById('weight-input-value').value) || 0;
+    if (val <= 0) return App.toast('Ingrese una cantidad válida', 'error');
+
+    let qty = 0;
+    if (this.weightMode === 'kg') {
+      qty = val;
+    } else {
+      qty = val / price;
+    }
+
+    const p = this.products.find(pr => pr.id === productId) || await DB.getProductById(productId);
+    if (!p) return App.toast('Producto no encontrado', 'error');
+    if (p.stock < qty) return App.toast('Stock insuficiente', 'warning');
+
+    const existing = this.cart.findIndex(i => i.cartItemId === productId);
+    if (existing >= 0) {
+      this.cart[existing].qty = parseFloat((this.cart[existing].qty + qty).toFixed(3));
+    } else {
+      this.cart.push({
+        cartItemId: productId,
+        productId: p.id,
+        name: p.name,
+        price: Number(p.price_sell),
+        qty: parseFloat(qty.toFixed(3)),
+        unit: 'kg',
+        stock: p.stock
+      });
+    }
+
+    Sounds.play('scan');
+    this.refreshCart();
+    App.closeModal();
+  },
+
+  showWholesaleChoiceModal(p) {
+    App.showModal(`
+      <div class="modal-header"><h3>📦 Formato de Venta: ${p.name}</h3><button class="modal-close" onclick="App.closeModal()">✕</button></div>
+      <div class="modal-body text-center">
+        <p class="text-muted mb-24">Selecciona el formato de venta de este producto.</p>
+        <div class="grid-2">
+          <button class="btn btn-outline" style="flex-direction:column;padding:24px;gap:12px;height:auto;width:100%;align-items:center;" onclick="POS.confirmAddWholesale('${p.id}', false)">
+            <span style="font-size:24px"> pieza </span>
+            <strong>Menudeo (1 Unidad)</strong>
+            <span style="color:var(--success);font-weight:700;font-size:1.2rem;">$${Number(p.price_sell).toFixed(2)}</span>
+          </button>
+          <button class="btn btn-primary" style="flex-direction:column;padding:24px;gap:12px;height:auto;width:100%;align-items:center;" onclick="POS.confirmAddWholesale('${p.id}', true)">
+            <span style="font-size:24px">📦</span>
+            <strong>Mayoreo (${p.wholesale_name} de ${p.wholesale_units})</strong>
+            <span style="color:#000;font-weight:700;font-size:1.2rem;">$${Number(p.wholesale_price).toFixed(2)}</span>
+          </button>
+        </div>
+      </div>
+    `);
+  },
+
+  confirmAddWholesale(productId, isWholesale) {
+    App.closeModal();
+    POS.addToCart(productId, isWholesale);
+  },
+
+  async addToCart(productId, forceWholesale = null) {
+    const p = this.products.find(pr => pr.id === productId) || await DB.getProductById(productId);
+    if (!p) return App.toast('Producto no encontrado', 'error');
+
+    // Weight/Fractional product
+    if (p.unit === 'kg' && forceWholesale !== true) {
+      POS.showWeightModal(p);
+      return;
+    }
+
+    // Wholesale choice product
+    if (p.has_wholesale && forceWholesale === null) {
+      POS.showWholesaleChoiceModal(p);
+      return;
+    }
+
+    const isWS = forceWholesale === true;
+    const name = isWS ? `${p.name} (${p.wholesale_name})` : p.name;
+    const price = isWS ? p.wholesale_price : p.price_sell;
+    const unit = isWS ? p.wholesale_name : p.unit;
+    const stockUnitsNeeded = isWS ? p.wholesale_units : 1;
+    const cartItemId = isWS ? `${productId}_ws` : productId;
+
+    const existing = this.cart.findIndex(i => i.cartItemId === cartItemId);
+    const currentQtyInCart = existing >= 0 ? this.cart[existing].qty : 0;
+    const stockNeeded = (currentQtyInCart + 1) * stockUnitsNeeded;
+
+    if (p.stock < stockNeeded) return App.toast('Stock insuficiente', 'warning');
+
     if (existing >= 0) {
       this.cart[existing].qty++;
     } else {
-      const p = this.products.find(pr => pr.id === productId) || await DB.getProductById(productId);
-      if (!p) return App.toast('Producto no encontrado', 'error');
-      if (p.stock <= 0) return App.toast('Sin stock disponible', 'warning');
-      this.cart.push({ productId: p.id, name: p.name, price: p.price_sell, qty: 1, unit: p.unit, stock: p.stock });
+      this.cart.push({
+        cartItemId,
+        productId: p.id,
+        name,
+        price: Number(price),
+        qty: 1,
+        unit,
+        stock: p.stock,
+        is_wholesale: isWS,
+        wholesale_units: p.wholesale_units
+      });
     }
     Sounds.play('scan');
     this.refreshCart();
@@ -225,8 +383,9 @@ const POS = {
     const item = this.cart[index];
     const newQty = item.qty + delta;
     if (newQty <= 0) return this.removeFromCart(index);
-    if (newQty > item.stock) return App.toast('Stock insuficiente', 'warning');
-    item.qty = newQty;
+    const stockUnitsNeeded = item.is_wholesale ? item.wholesale_units : 1;
+    if (item.stock < newQty * stockUnitsNeeded) return App.toast('Stock insuficiente', 'warning');
+    item.qty = parseFloat(newQty.toFixed(3));
     this.refreshCart();
   },
 
@@ -420,7 +579,9 @@ const POS = {
       const items = this.cart.map(i => ({
         product_id: i.productId, product_name: i.name,
         quantity: i.qty, unit_price: i.price, discount: 0,
-        subtotal: i.price * i.qty
+        subtotal: i.price * i.qty,
+        is_wholesale: i.is_wholesale || false,
+        wholesale_units: i.wholesale_units || 1
       }));
 
       const saleData = await DB.createSale(sale, items);
@@ -450,7 +611,7 @@ const POS = {
       this.products = await DB.getProducts();
       this.refreshCart();
       document.getElementById('product-grid').innerHTML = this.renderProducts();
-      
+
       // Close cart on mobile
       if (window.innerWidth <= 1024) {
         document.getElementById('pos-cart')?.classList.remove('open');

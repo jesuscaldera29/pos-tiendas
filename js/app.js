@@ -58,6 +58,8 @@ const App = {
     BarcodeScanner.init((code) => {
       if (App.currentSection === 'pos') {
         POS.handleBarcodeScan(code);
+      } else if (App.currentSection === 'inventory') {
+        Inventory.handleBarcodeScan(code);
       }
     });
 
@@ -123,6 +125,65 @@ const App = {
 
   closeModal() {
     document.getElementById('modal-overlay').classList.remove('active');
+  },
+
+  activeScanner: null,
+
+  startCameraScanner(callback) {
+    App.showModal(`
+      <div class="modal-header"><h3>📷 Escanear con Cámara</h3><button class="modal-close" onclick="App.stopCameraScanner()">✕</button></div>
+      <div class="modal-body text-center">
+        <div id="camera-reader" style="width:100%; max-width:400px; margin:0 auto; border-radius:var(--radius-sm); overflow:hidden;"></div>
+        <p class="text-muted mt-8">Apunta al código de barras con la cámara trasera de tu celular.</p>
+      </div>
+    `);
+
+    setTimeout(() => {
+      if (typeof Html5Qrcode === 'undefined') {
+        App.toast("Cargando escáner de cámara...", "info");
+        return;
+      }
+      const html5QrCode = new Html5Qrcode("camera-reader");
+      App.activeScanner = html5QrCode;
+      
+      html5QrCode.start(
+        { facingMode: "environment" }, 
+        {
+          fps: 10,
+          qrbox: (width, height) => {
+            return { width: Math.min(width * 0.8, 300), height: 120 };
+          }
+        },
+        (decodedText) => {
+          Sounds.play('scan');
+          App.toast(`Código detectado: ${decodedText}`, 'success');
+          App.stopCameraScanner();
+          if (callback) callback(decodedText);
+        },
+        (errorMessage) => {
+          // Silent scan errors
+        }
+      ).catch(err => {
+        console.error("Camera scan failed to start:", err);
+        App.toast("Error al abrir cámara: " + err.message, "error");
+        App.closeModal();
+      });
+    }, 300);
+  },
+
+  stopCameraScanner() {
+    if (App.activeScanner) {
+      App.activeScanner.stop().then(() => {
+        App.activeScanner = null;
+        App.closeModal();
+      }).catch(err => {
+        console.error("Error stopping camera scanner:", err);
+        App.activeScanner = null;
+        App.closeModal();
+      });
+    } else {
+      App.closeModal();
+    }
   },
 
   // Toast notifications

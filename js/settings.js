@@ -95,9 +95,80 @@ const Settings = {
           <div id="users-list"><span class="spinner"></span> Cargando...</div>
           <button class="btn btn-outline w-full mt-16" onclick="Settings.showAddUser()">➕ Agregar Cajero</button>
         </div>
+
+        <div class="settings-section col-span-2" style="grid-column: 1 / -1;">
+          <h4>🔌 Diagnóstico de Hardware y Conexiones</h4>
+          <p class="text-muted mb-16">Prueba que tu lector de códigos, impresora y cámara de celular estén configurados correctamente.</p>
+          <div class="grid-3">
+            <div style="background:var(--bg-surface); padding:16px; border-radius:var(--radius-sm); border:1px solid var(--border);">
+              <h5 class="mb-8">🖨️ Impresora de Tickets</h5>
+              <p class="text-muted mb-12" style="font-size:0.8rem;">Imprime un ticket de prueba para verificar alineación y conexión.</p>
+              <button class="btn btn-outline btn-sm w-full" onclick="Settings.printTestTicket()">🖨️ Probar Impresora</button>
+            </div>
+            
+            <div style="background:var(--bg-surface); padding:16px; border-radius:var(--radius-sm); border:1px solid var(--border);">
+              <h5 class="mb-8">🔌 Lector Físico (Pistola Láser)</h5>
+              <p class="text-muted mb-12" style="font-size:0.8rem;">Haz clic en el cuadro y escanea un producto con tu lector.</p>
+              <input type="text" class="form-input" style="padding:6px 12px;font-size:0.85rem;" placeholder="Haz clic aquí y escanea..." onkeydown="Settings.testBarcodeScanner(event)">
+              <div id="scanner-test-result" class="mt-8 text-success font-bold" style="font-size:0.8rem;"></div>
+            </div>
+
+            <div style="background:var(--bg-surface); padding:16px; border-radius:var(--radius-sm); border:1px solid var(--border);">
+              <h5 class="mb-8">📷 Escáner de Cámara (Celular)</h5>
+              <p class="text-muted mb-12" style="font-size:0.8rem;">Verifica los permisos y prueba la lectura rápida de códigos desde tu celular.</p>
+              <button class="btn btn-outline btn-sm w-full" onclick="App.startCameraScanner(code => Settings.testCameraScannerResult(code))">📷 Iniciar Cámara</button>
+              <div id="camera-test-result" class="mt-8 text-success font-bold" style="font-size:0.8rem;"></div>
+            </div>
+          </div>
+        </div>
       </div>
     `;
     this.loadUsers();
+  },
+
+  printTestTicket() {
+    const businessName = this.business?.name || 'Mi Negocio';
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+      <html>
+      <head>
+        <title>Ticket de Prueba</title>
+        <style>
+          body { font-family: 'Courier New', Courier, monospace; width: 80mm; margin: 0; padding: 20px; text-align: center; color: #000; }
+          .hr { border-bottom: 1px dashed #000; margin: 10px 0; }
+        </style>
+      </head>
+      <body>
+        <h3>${businessName}</h3>
+        <p>PRUEBA DE IMPRESIÓN</p>
+        <div class="hr"></div>
+        <p>La impresora de tickets se encuentra conectada correctamente.</p>
+        <p>Fecha: ${new Date().toLocaleString()}</p>
+        <div class="hr"></div>
+        <p>¡Gracias por su prueba!</p>
+        <script>
+          window.onload = function() { window.print(); window.close(); };
+        </script>
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
+    App.toast('Enviando ticket de prueba...', 'success');
+  },
+
+  testBarcodeScanner(e) {
+    if (e.key === 'Enter') {
+      const val = e.target.value.trim();
+      if (val) {
+        document.getElementById('scanner-test-result').textContent = `✅ Escaneado: ${val}`;
+        Sounds.play('scan');
+        e.target.value = '';
+      }
+    }
+  },
+
+  testCameraScannerResult(code) {
+    document.getElementById('camera-test-result').textContent = `✅ Escaneado: ${code}`;
   },
 
   async saveBusiness() {

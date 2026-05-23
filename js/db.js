@@ -33,11 +33,11 @@ const DB = {
 
   async getProductByBarcode(barcode) {
     try {
-      const { data } = await supabase.from('products').select('*, categories(name, icon, color)').eq('business_id', this.businessId).eq('barcode', barcode).eq('is_active', true).single();
+      const { data } = await supabase.from('products').select('*, categories(name, icon, color)').eq('business_id', this.businessId).eq('is_active', true).or(`barcode.eq.${barcode},wholesale_barcode.eq.${barcode}`).limit(1).maybeSingle();
       return data;
     } catch (err) {
       console.warn("Failed getProductByBarcode with join, retrying without join:", err);
-      const { data } = await supabase.from('products').select('*').eq('business_id', this.businessId).eq('barcode', barcode).eq('is_active', true).single();
+      const { data } = await supabase.from('products').select('*').eq('business_id', this.businessId).eq('is_active', true).or(`barcode.eq.${barcode},wholesale_barcode.eq.${barcode}`).limit(1).maybeSingle();
       return data;
     }
   },
@@ -117,11 +117,25 @@ const DB = {
     sale.user_id = this.userId;
     const { data: saleData, error } = await supabase.from('sales').insert(sale).select().single();
     if (error) throw error;
-    const saleItems = items.map(item => ({ ...item, sale_id: saleData.id }));
-    await supabase.from('sale_items').insert(saleItems);
-    // Update stock
+    
+    // Strip custom JS fields that aren't database columns in sale_items
+    const dbSaleItems = items.map(item => ({
+      sale_id: saleData.id,
+      product_id: item.product_id,
+      product_name: item.product_name,
+      quantity: item.quantity,
+      unit_price: item.unit_price,
+      discount: item.discount || 0,
+      subtotal: item.subtotal
+    }));
+    await supabase.from('sale_items').insert(dbSaleItems);
+    
+    // Update stock taking conversion units into account
     for (const item of items) {
-      if (item.product_id) await this.updateStock(item.product_id, item.quantity, 'sale');
+      if (item.product_id) {
+        const qtyToDeduct = item.is_wholesale ? item.quantity * item.wholesale_units : item.quantity;
+        await this.updateStock(item.product_id, qtyToDeduct, 'sale');
+      }
     }
     return saleData;
   },

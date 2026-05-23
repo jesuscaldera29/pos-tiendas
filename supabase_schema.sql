@@ -84,6 +84,11 @@ CREATE TABLE products (
   unit TEXT DEFAULT 'pieza',
   image_url TEXT,
   expiry_date DATE,
+  has_wholesale BOOLEAN DEFAULT false,
+  wholesale_name TEXT DEFAULT 'Caja',
+  wholesale_units DECIMAL(10,3) DEFAULT 1,
+  wholesale_price DECIMAL(10,2) DEFAULT 0,
+  wholesale_barcode TEXT,
   is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );

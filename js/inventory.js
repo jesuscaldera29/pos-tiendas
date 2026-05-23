@@ -31,8 +31,11 @@ const Inventory = {
         <span class="text-muted">${lowStock.map(p => p.name).slice(0,5).join(', ')}${lowStock.length > 5 ? '...' : ''}</span></div></div>
       </div>` : ''}
       <div class="inv-toolbar">
-        <div class="search-box" style="flex:1"><span class="search-icon">🔍</span>
-          <input class="form-input" style="padding-left:36px" placeholder="Buscar producto..." oninput="Inventory.search(this.value)" value="${this.searchTerm}">
+        <div style="flex:1; display:flex; gap:8px;">
+          <div class="search-box" style="flex:1;"><span class="search-icon">🔍</span>
+            <input class="form-input" style="padding-left:36px" placeholder="Buscar producto..." oninput="Inventory.search(this.value)" value="${this.searchTerm}">
+          </div>
+          <button class="btn btn-outline" style="padding: 0 12px;" onclick="App.startCameraScanner(code => Inventory.handleBarcodeScan(code))">📷</button>
         </div>
         <button class="btn btn-primary" onclick="Inventory.showProductForm()">➕ Nuevo Producto</button>
         <button class="btn btn-outline" onclick="Inventory.showCategoryManager()">🏷️ Categorías</button>
@@ -67,6 +70,14 @@ const Inventory = {
       const margin = p.price_buy > 0 ? (((p.price_sell - p.price_buy) / p.price_buy) * 100).toFixed(0) : '-';
       const catName = p.categories ? `${p.categories.icon} ${p.categories.name}` : '-';
       const stockClass = p.stock <= p.min_stock ? 'text-danger font-bold' : '';
+      
+      let stockText = `${p.stock} ${p.unit}`;
+      if (p.has_wholesale && p.wholesale_units > 1) {
+        const wholesales = Math.floor(p.stock / p.wholesale_units);
+        const remainder = p.stock % p.wholesale_units;
+        stockText = `${p.stock} ${p.unit} (${wholesales} ${p.wholesale_name}${remainder > 0 ? `, ${remainder.toFixed(0)} ${p.unit}` : ''})`;
+      }
+      
       return `<tr>
         <td><strong>${p.name}</strong></td>
         <td><code style="font-size:0.8rem">${p.barcode || '-'}</code></td>
@@ -74,7 +85,7 @@ const Inventory = {
         <td>$${Number(p.price_buy).toFixed(2)}</td>
         <td class="font-bold">$${Number(p.price_sell).toFixed(2)}</td>
         <td><span class="badge badge-success">${margin}%</span></td>
-        <td class="${stockClass}">${p.stock} ${p.unit}</td>
+        <td class="${stockClass}">${stockText}</td>
         <td>
           <button class="btn btn-ghost btn-sm" onclick="Inventory.showProductForm('${p.id}')">✏️</button>
           <button class="btn btn-ghost btn-sm" onclick="Inventory.adjustStock('${p.id}')">📦</button>
@@ -97,7 +108,7 @@ const Inventory = {
   },
 
   async showProductForm(productId, prefilledBarcode = '') {
-    let product = { name: '', barcode: '', price_buy: 0, price_sell: 0, stock: 0, min_stock: 5, category_id: '', unit: 'pieza', expiry_date: '' };
+    let product = { name: '', barcode: '', price_buy: 0, price_sell: 0, stock: 0, min_stock: 5, category_id: '', unit: 'pieza', expiry_date: '', has_wholesale: false, wholesale_name: 'Caja', wholesale_units: 1, wholesale_price: 0, wholesale_barcode: '' };
     if (productId) {
       product = this.products.find(p => p.id === productId) || product;
     }
@@ -106,7 +117,12 @@ const Inventory = {
       <div class="modal-body">
         <div class="grid-2">
           <div class="form-group"><label class="form-label">Nombre *</label><input type="text" id="pf-name" class="form-input" value="${product.name}"></div>
-          <div class="form-group"><label class="form-label">Código de barras</label><input type="text" id="pf-barcode" class="form-input" value="${product.barcode || prefilledBarcode || ''}" placeholder="Escanear o escribir"></div>
+          <div class="form-group"><label class="form-label">Código de barras (Unidad)</label>
+            <div class="flex gap-8">
+              <input type="text" id="pf-barcode" class="form-input" style="flex:1" value="${product.barcode || prefilledBarcode || ''}" placeholder="Escanear o escribir">
+              <button class="btn btn-outline" style="padding: 0 12px;" onclick="App.startCameraScanner(code => document.getElementById('pf-barcode').value = code)" type="button">📷</button>
+            </div>
+          </div>
           <div class="form-group"><label class="form-label">Precio Compra</label><input type="number" id="pf-buy" class="form-input" step="0.01" value="${product.price_buy}"></div>
           <div class="form-group"><label class="form-label">Precio Venta *</label><input type="number" id="pf-sell" class="form-input" step="0.01" value="${product.price_sell}"></div>
           <div class="form-group"><label class="form-label">Stock actual</label><input type="number" id="pf-stock" class="form-input" step="0.001" value="${product.stock}"></div>
@@ -118,12 +134,31 @@ const Inventory = {
               <button class="btn btn-outline" style="padding: 0 12px;" onclick="Inventory.quickAddCategoryPrompt()" type="button">➕</button>
             </div>
           </div>
-          <div class="form-group"><label class="form-label">Unidad</label>
+          <div class="form-group"><label class="form-label">Unidad de venta</label>
             <select id="pf-unit" class="form-select">
               ${['pieza','kg','litro','paquete','caja','metro'].map(u => `<option ${product.unit === u ? 'selected' : ''}>${u}</option>`).join('')}
             </select>
           </div>
           <div class="form-group"><label class="form-label">Fecha caducidad</label><input type="date" id="pf-expiry" class="form-input" value="${product.expiry_date || ''}"></div>
+          
+          <div class="form-group" style="grid-column: 1 / -1; margin-top: 8px;">
+            <label class="flex items-center gap-8" style="cursor:pointer">
+              <input type="checkbox" id="pf-has-wholesale" onchange="document.getElementById('wholesale-fields').style.display = this.checked ? 'grid' : 'none'" ${product.has_wholesale ? 'checked' : ''} style="width:20px;height:20px;">
+              <strong>📦 Habilitar venta por Caja / Bulto / Paca (Mayoreo)</strong>
+            </label>
+          </div>
+          
+          <div class="grid-2" id="wholesale-fields" style="grid-column: 1 / -1; display: ${product.has_wholesale ? 'grid' : 'none'}; gap: 16px; background: var(--bg-surface); padding: 16px; border-radius: var(--radius-sm); border: 1px dashed var(--border);">
+            <div class="form-group"><label class="form-label">Nombre del empaque (ej: Caja, Paca, Bulto)</label><input type="text" id="pf-ws-name" class="form-input" value="${product.wholesale_name || 'Caja'}"></div>
+            <div class="form-group"><label class="form-label">Unidades por empaque</label><input type="number" id="pf-ws-units" class="form-input" value="${product.wholesale_units || 1}"></div>
+            <div class="form-group"><label class="form-label">Precio de venta por empaque</label><input type="number" id="pf-ws-price" class="form-input" step="0.01" value="${product.wholesale_price || 0}"></div>
+            <div class="form-group"><label class="form-label">Código de barras de empaque</label>
+              <div class="flex gap-8">
+                <input type="text" id="pf-ws-barcode" class="form-input" style="flex:1" value="${product.wholesale_barcode || ''}" placeholder="Escanear o escribir">
+                <button class="btn btn-outline" style="padding: 0 12px;" onclick="App.startCameraScanner(code => document.getElementById('pf-ws-barcode').value = code)" type="button">📷</button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
       <div class="modal-footer">
@@ -183,6 +218,11 @@ const Inventory = {
       category_id: document.getElementById('pf-cat').value || null,
       unit: document.getElementById('pf-unit').value,
       expiry_date: document.getElementById('pf-expiry').value || null,
+      has_wholesale: document.getElementById('pf-has-wholesale').checked,
+      wholesale_name: document.getElementById('pf-ws-name').value || 'Caja',
+      wholesale_units: parseFloat(document.getElementById('pf-ws-units').value) || 1,
+      wholesale_price: parseFloat(document.getElementById('pf-ws-price').value) || 0,
+      wholesale_barcode: document.getElementById('pf-ws-barcode').value || null,
     };
     if (!data.name || !data.price_sell) return App.toast('Nombre y precio de venta son requeridos', 'error');
     if (id) data.id = id;
