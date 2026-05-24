@@ -430,14 +430,169 @@ const POS = {
       const input = document.getElementById('barcode-input');
       if (input) input.value = '';
     } else {
-      App.toast('Producto no encontrado: ' + code, 'error');
       Sounds.play('error');
-      setTimeout(() => {
-        if (confirm(`El producto con código "${code}" no existe. ¿Deseas ir al inventario para registrarlo?`)) {
-          App.navigate('inventory');
-          Inventory.showProductForm(null, code);
-        }
-      }, 500);
+      this.showNewProductFromBarcode(code);
+    }
+  },
+
+  async showNewProductFromBarcode(barcode) {
+    // Load categories for the select
+    const categories = await DB.getCategories();
+    App.showModal(`
+      <div class="modal-header">
+        <h3>📦 Nuevo Producto Detectado</h3>
+        <button class="modal-close" onclick="App.closeModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div style="background: linear-gradient(135deg, rgba(99,102,241,0.1), rgba(139,92,246,0.1)); border: 1px solid rgba(99,102,241,0.3); border-radius: var(--radius-sm); padding: 16px; margin-bottom: 20px; display: flex; align-items: center; gap: 12px;">
+          <span style="font-size: 28px;">🔍</span>
+          <div>
+            <div style="font-weight: 700; color: var(--text-primary);">Código no registrado</div>
+            <div style="font-family: monospace; font-size: 1.1rem; color: var(--primary); font-weight: 600; letter-spacing: 1px;">${barcode}</div>
+            <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 4px;">Completa los datos para registrar este producto y agregarlo al carrito.</div>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label class="form-label">Nombre del producto *</label>
+            <input type="text" id="np-name" class="form-input" placeholder="Ej: Coca-Cola 600ml" autofocus>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Código de barras</label>
+            <input type="text" id="np-barcode" class="form-input" value="${barcode}" readonly style="opacity: 0.7; cursor: not-allowed;">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Precio de Compra</label>
+            <input type="number" id="np-buy" class="form-input" step="0.01" placeholder="0.00">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Precio de Venta *</label>
+            <input type="number" id="np-sell" class="form-input" step="0.01" placeholder="0.00">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Stock inicial</label>
+            <input type="number" id="np-stock" class="form-input" step="0.001" value="1" placeholder="0">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Stock mínimo</label>
+            <input type="number" id="np-minstock" class="form-input" value="5">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Categoría</label>
+            <div class="flex gap-8">
+              <select id="np-cat" class="form-select" style="flex:1">
+                <option value="">Sin categoría</option>
+                ${categories.map(c => `<option value="${c.id}">${c.icon} ${c.name}</option>`).join('')}
+              </select>
+              <button class="btn btn-outline" style="padding: 0 12px;" onclick="POS.quickAddCategoryInModal()" type="button">➕</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Unidad de venta</label>
+            <select id="np-unit" class="form-select">
+              ${['pieza', 'kg', 'litro', 'paquete', 'caja', 'metro'].map(u => `<option>${u}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Fecha caducidad</label>
+            <input type="date" id="np-expiry" class="form-input">
+          </div>
+          <div class="form-group" style="grid-column: 1 / -1; margin-top: 8px;">
+            <label class="flex items-center gap-8" style="cursor:pointer">
+              <input type="checkbox" id="np-has-wholesale" onchange="document.getElementById('np-wholesale-fields').style.display = this.checked ? 'grid' : 'none'" style="width:20px;height:20px;">
+              <strong>📦 Habilitar venta por Caja / Bulto / Paca (Mayoreo)</strong>
+            </label>
+          </div>
+          <div class="grid-2" id="np-wholesale-fields" style="grid-column: 1 / -1; display: none; gap: 16px; background: var(--bg-surface); padding: 16px; border-radius: var(--radius-sm); border: 1px dashed var(--border);">
+            <div class="form-group"><label class="form-label">Nombre del empaque</label><input type="text" id="np-ws-name" class="form-input" value="Caja" placeholder="Caja, Paca, Bulto..."></div>
+            <div class="form-group"><label class="form-label">Unidades por empaque</label><input type="number" id="np-ws-units" class="form-input" value="1"></div>
+            <div class="form-group"><label class="form-label">Precio por empaque</label><input type="number" id="np-ws-price" class="form-input" step="0.01" value="0"></div>
+            <div class="form-group"><label class="form-label">Código de barras empaque</label>
+              <div class="flex gap-8">
+                <input type="text" id="np-ws-barcode" class="form-input" style="flex:1" placeholder="Opcional">
+                <button class="btn btn-outline" style="padding: 0 12px;" onclick="App.startCameraScanner(code => document.getElementById('np-ws-barcode').value = code)" type="button">📷</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="App.closeModal()">Cancelar</button>
+        <button class="btn btn-success" id="np-save-btn" onclick="POS.saveNewProductFromBarcode('${barcode}')">
+          💾 Guardar y Agregar al Carrito
+        </button>
+      </div>
+    `, 'modal-lg');
+    // Focus the name input after modal renders
+    setTimeout(() => document.getElementById('np-name')?.focus(), 200);
+  },
+
+  async quickAddCategoryInModal() {
+    const name = prompt('Nombre de la nueva categoría:');
+    if (!name) return;
+    const icon = prompt('Icono / Emoji (opcional, ej: 🥤):', '📦') || '📦';
+    try {
+      const newCat = await DB.saveCategory({ name, icon });
+      App.toast('Categoría creada', 'success');
+      const categories = await DB.getCategories();
+      const catSelect = document.getElementById('np-cat');
+      if (catSelect) {
+        catSelect.innerHTML = `<option value="">Sin categoría</option>` +
+          categories.map(c => `<option value="${c.id}" ${newCat.id === c.id ? 'selected' : ''}>${c.icon} ${c.name}</option>`).join('');
+      }
+    } catch (e) {
+      App.toast('Error al crear categoría: ' + e.message, 'error');
+    }
+  },
+
+  async saveNewProductFromBarcode(barcode) {
+    const btn = document.getElementById('np-save-btn');
+    const name = document.getElementById('np-name').value.trim();
+    const priceSell = parseFloat(document.getElementById('np-sell').value) || 0;
+
+    if (!name) return App.toast('El nombre del producto es requerido', 'error');
+    if (priceSell <= 0) return App.toast('El precio de venta es requerido', 'error');
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Guardando...';
+
+    try {
+      const data = {
+        name,
+        barcode: barcode || null,
+        price_buy: parseFloat(document.getElementById('np-buy').value) || 0,
+        price_sell: priceSell,
+        stock: parseFloat(document.getElementById('np-stock').value) || 0,
+        min_stock: parseFloat(document.getElementById('np-minstock').value) || 5,
+        category_id: document.getElementById('np-cat').value || null,
+        unit: document.getElementById('np-unit').value,
+        expiry_date: document.getElementById('np-expiry').value || null,
+        has_wholesale: document.getElementById('np-has-wholesale').checked,
+        wholesale_name: document.getElementById('np-ws-name')?.value || 'Caja',
+        wholesale_units: parseFloat(document.getElementById('np-ws-units')?.value) || 1,
+        wholesale_price: parseFloat(document.getElementById('np-ws-price')?.value) || 0,
+        wholesale_barcode: document.getElementById('np-ws-barcode')?.value || null,
+      };
+
+      const savedProduct = await DB.saveProduct(data);
+      App.toast(`✅ Producto "${name}" registrado exitosamente`, 'success');
+      Sounds.play('scan');
+      App.closeModal();
+
+      // Refresh products list and add the new product to cart
+      this.products = await DB.getProducts();
+      this.addToCart(savedProduct.id);
+
+      // Refresh product grid
+      document.getElementById('product-grid').innerHTML = this.renderProducts();
+
+      // Clear barcode input
+      const input = document.getElementById('barcode-input');
+      if (input) input.value = '';
+    } catch (err) {
+      App.toast('Error al guardar: ' + err.message, 'error');
+      btn.disabled = false;
+      btn.innerHTML = '💾 Guardar y Agregar al Carrito';
     }
   },
 

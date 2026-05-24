@@ -33,7 +33,7 @@ const Inventory = {
       <div class="inv-toolbar">
         <div style="flex:1; display:flex; gap:8px;">
           <div class="search-box" style="flex:1;"><span class="search-icon">🔍</span>
-            <input class="form-input" style="padding-left:36px" placeholder="Buscar producto..." oninput="Inventory.search(this.value)" value="${this.searchTerm}">
+            <input class="form-input" style="padding-left:36px" placeholder="Buscar producto o escanear código..." oninput="Inventory.search(this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();Inventory.handleBarcodeScan(this.value.trim());}" value="${this.searchTerm}">
           </div>
           <button class="btn btn-outline" style="padding: 0 12px;" onclick="App.startCameraScanner(code => Inventory.handleBarcodeScan(code))">📷</button>
         </div>
@@ -108,19 +108,32 @@ const Inventory = {
   },
 
   async showProductForm(productId, prefilledBarcode = '') {
+    // Always load fresh categories
+    try {
+      this.categories = await DB.getCategories();
+    } catch (e) { console.warn('Error loading categories:', e); }
+
     let product = { name: '', barcode: '', price_buy: 0, price_sell: 0, stock: 0, min_stock: 5, category_id: '', unit: 'pieza', expiry_date: '', has_wholesale: false, wholesale_name: 'Caja', wholesale_units: 1, wholesale_price: 0, wholesale_barcode: '' };
     if (productId) {
-      product = this.products.find(p => p.id === productId) || product;
+      product = this.products.find(p => p.id === productId) || await DB.getProductById(productId) || product;
     }
     App.showModal(`
       <div class="modal-header"><h3>${productId ? '✏️ Editar' : '➕ Nuevo'} Producto</h3><button class="modal-close" onclick="App.closeModal()">✕</button></div>
       <div class="modal-body">
+        ${prefilledBarcode ? `
+        <div style="background: linear-gradient(135deg, rgba(16,185,129,0.1), rgba(99,102,241,0.1)); border: 1px solid rgba(16,185,129,0.3); border-radius: var(--radius-sm); padding: 12px 16px; margin-bottom: 16px; display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 22px;">🏷️</span>
+          <div>
+            <span style="font-size: 0.85rem; color: var(--text-secondary);">Código de barras detectado:</span>
+            <strong style="font-family: monospace; color: var(--primary); letter-spacing: 1px; margin-left: 8px;">${prefilledBarcode}</strong>
+          </div>
+        </div>` : ''}
         <div class="grid-2">
-          <div class="form-group"><label class="form-label">Nombre *</label><input type="text" id="pf-name" class="form-input" value="${product.name}"></div>
+          <div class="form-group"><label class="form-label">Nombre *</label><input type="text" id="pf-name" class="form-input" value="${product.name}" placeholder="Ej: Coca-Cola 600ml"></div>
           <div class="form-group"><label class="form-label">Código de barras (Unidad)</label>
             <div class="flex gap-8">
-              <input type="text" id="pf-barcode" class="form-input" style="flex:1" value="${product.barcode || prefilledBarcode || ''}" placeholder="Escanear o escribir">
-              <button class="btn btn-outline" style="padding: 0 12px;" onclick="App.startCameraScanner(code => document.getElementById('pf-barcode').value = code)" type="button">📷</button>
+              <input type="text" id="pf-barcode" class="form-input" style="flex:1" value="${product.barcode || prefilledBarcode || ''}" placeholder="Escanear o escribir" ${prefilledBarcode ? 'readonly style="flex:1; opacity:0.7; cursor:not-allowed;"' : ''}>
+              ${!prefilledBarcode ? '<button class="btn btn-outline" style="padding: 0 12px;" onclick="App.startCameraScanner(code => document.getElementById(\'pf-barcode\').value = code)" type="button">📷</button>' : ''}
             </div>
           </div>
           <div class="form-group"><label class="form-label">Precio Compra</label><input type="number" id="pf-buy" class="form-input" step="0.01" value="${product.price_buy}"></div>
@@ -166,6 +179,10 @@ const Inventory = {
         <button class="btn btn-primary" onclick="Inventory.saveProduct('${productId || ''}')">💾 Guardar</button>
       </div>
     `, 'modal-lg');
+    // Auto-focus name field for new products
+    if (!productId) {
+      setTimeout(() => document.getElementById('pf-name')?.focus(), 200);
+    }
   },
 
   async quickAddCategoryPrompt() {
@@ -193,36 +210,57 @@ const Inventory = {
 
   async handleBarcodeScan(code) {
     if (!code) return;
-    const existing = this.products.find(p => p.barcode === code);
+    // Search in DB, not just local array
+    const existing = await DB.getProductByBarcode(code);
     if (existing) {
       this.searchTerm = code;
       const searchInput = document.querySelector('.inv-toolbar .search-box input');
       if (searchInput) searchInput.value = code;
-      this.render();
+      document.getElementById('inv-table-body').innerHTML = this.renderTable();
       App.toast(`Producto encontrado: ${existing.name}`, 'success');
     } else {
-      if (confirm(`El código "${code}" no está registrado. ¿Deseas registrar un nuevo producto con este código?`)) {
-        this.showProductForm(null, code);
-      }
+      Sounds.play('error');
+      // Clear search input
+      this.searchTerm = '';
+      const searchInput = document.querySelector('.inv-toolbar .search-box input');
+      if (searchInput) searchInput.value = '';
+      App.toast('Código no registrado. Abriendo formulario...', 'info');
+      // Directly open the product form with barcode pre-filled
+      await this.showProductForm(null, code);
     }
   },
 
   async saveProduct(id) {
+    const nameEl = document.getElementById('pf-name');
+    const barcodeEl = document.getElementById('pf-barcode');
+    const buyEl = document.getElementById('pf-buy');
+    const sellEl = document.getElementById('pf-sell');
+    const stockEl = document.getElementById('pf-stock');
+    const minstockEl = document.getElementById('pf-minstock');
+    const catEl = document.getElementById('pf-cat');
+    const unitEl = document.getElementById('pf-unit');
+    const expiryEl = document.getElementById('pf-expiry');
+    const wholesaleCheck = document.getElementById('pf-has-wholesale');
+
+    if (!nameEl || !sellEl) {
+      return App.toast('Error: formulario no encontrado', 'error');
+    }
+
     const data = {
-      name: document.getElementById('pf-name').value,
-      barcode: document.getElementById('pf-barcode').value || null,
-      price_buy: parseFloat(document.getElementById('pf-buy').value) || 0,
-      price_sell: parseFloat(document.getElementById('pf-sell').value) || 0,
-      stock: parseFloat(document.getElementById('pf-stock').value) || 0,
-      min_stock: parseFloat(document.getElementById('pf-minstock').value) || 5,
-      category_id: document.getElementById('pf-cat').value || null,
-      unit: document.getElementById('pf-unit').value,
-      expiry_date: document.getElementById('pf-expiry').value || null,
-      has_wholesale: document.getElementById('pf-has-wholesale').checked,
-      wholesale_name: document.getElementById('pf-ws-name').value || 'Caja',
-      wholesale_units: parseFloat(document.getElementById('pf-ws-units').value) || 1,
-      wholesale_price: parseFloat(document.getElementById('pf-ws-price').value) || 0,
-      wholesale_barcode: document.getElementById('pf-ws-barcode').value || null,
+      name: nameEl.value.trim(),
+      barcode: barcodeEl?.value || null,
+      price_buy: parseFloat(buyEl?.value) || 0,
+      price_sell: parseFloat(sellEl.value) || 0,
+      stock: parseFloat(stockEl?.value) || 0,
+      min_stock: parseFloat(minstockEl?.value) || 5,
+      category_id: catEl?.value || null,
+      unit: unitEl?.value || 'pieza',
+      expiry_date: expiryEl?.value || null,
+      has_wholesale: wholesaleCheck?.checked || false,
+      wholesale_name: document.getElementById('pf-ws-name')?.value || 'Caja',
+      wholesale_units: parseFloat(document.getElementById('pf-ws-units')?.value) || 1,
+      wholesale_price: parseFloat(document.getElementById('pf-ws-price')?.value) || 0,
+      wholesale_barcode: document.getElementById('pf-ws-barcode')?.value || null,
     };
     if (!data.name || !data.price_sell) return App.toast('Nombre y precio de venta son requeridos', 'error');
     if (id) data.id = id;

@@ -162,8 +162,25 @@ const App = {
         (decodedText) => {
           Sounds.play('scan');
           App.toast(`Código detectado: ${decodedText}`, 'success');
-          App.stopCameraScanner();
-          if (callback) callback(decodedText);
+          // Stop scanner and close camera modal FIRST, then call callback
+          const runCallback = () => {
+            setTimeout(() => { if (callback) callback(decodedText); }, 250);
+          };
+          if (App.activeScanner) {
+            App.activeScanner.stop().then(() => {
+              App.activeScanner = null;
+              App.closeModal();
+              runCallback();
+            }).catch(err => {
+              console.error("Error stopping camera scanner:", err);
+              App.activeScanner = null;
+              App.closeModal();
+              runCallback();
+            });
+          } else {
+            App.closeModal();
+            runCallback();
+          }
         },
         (errorMessage) => {
           // Silent scan errors
